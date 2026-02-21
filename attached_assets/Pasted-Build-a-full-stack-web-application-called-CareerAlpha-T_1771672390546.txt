@@ -1,0 +1,238 @@
+Build a full-stack web application called CareerAlpha.
+
+This is a production-ready web app where users upload their official LinkedIn data export (ZIP or CSV), and the system parses the data and computes a Career Alpha Score based on weighted factors aligned to specific career tracks:
+
+Software Engineering Intern
+
+Investment Banking / Corporate Finance
+
+Asset Management
+
+The app must compute:
+
+Raw factor scores
+
+Weighted composite score
+
+Percentile ranking against the user base
+
+A breakdown explaining score contributions
+
+Actionable improvement suggestions
+
+TECH STACK REQUIREMENTS:
+
+Next.js (App Router)
+
+TypeScript
+
+Tailwind CSS (minimal dark aesthetic)
+
+PostgreSQL (Replit SQL Database)
+
+Server-side API routes
+
+File upload handling
+
+No LinkedIn scraping
+
+All data must come from user-uploaded exports only
+
+CORE FEATURES:
+
+Authentication
+Use Replit Auth.
+Each user must have isolated stored data.
+
+Upload & Ingestion
+Users upload LinkedIn ZIP or CSV export files.
+Store raw upload in storage.
+Parse and normalize the following data:
+
+Positions
+
+Education
+
+Skills
+
+Connections (if available)
+
+Create the following SQL tables:
+
+users
+
+positions
+
+education
+
+skills
+
+connections
+
+computed_features
+
+scores
+
+track_weights
+
+Feature Engineering (Backend Logic)
+
+Extract and compute the following features:
+
+internship_count
+
+total_roles
+
+brand_score (based on predefined company scoring map)
+
+education_tier_score
+
+skill_density (skills per role)
+
+seniority_progression_score
+
+network_size
+
+recency_score
+
+consistency_score
+
+Store computed features per user in the database.
+
+Scoring Engine
+
+Define weighted scoring formulas per track.
+
+SWE Track:
+
+internship_count × 0.25
+
+brand_score × 0.20
+
+skill_density × 0.20
+
+education_tier_score × 0.15
+
+seniority_progression × 0.10
+
+network_size × 0.10
+
+Finance Track:
+
+brand_score × 0.30
+
+internship_count × 0.25
+
+education_tier_score × 0.20
+
+consistency_score × 0.15
+
+network_size × 0.10
+
+Asset Management Track:
+
+internship_count × 0.30
+
+brand_score × 0.25
+
+education_tier_score × 0.20
+
+recency_score × 0.15
+
+network_size × 0.10
+
+The system must compute:
+
+Weighted total score
+
+Percentile ranking against users in the same track
+
+All calculations must occur server-side.
+
+Dashboard UI
+
+Create the following pages:
+
+Upload Page
+
+Track Selection Page
+
+Dashboard Page
+
+Leaderboard Page
+
+Dashboard must display:
+
+Total Career Alpha Score
+
+Percentile rank
+
+Factor contribution breakdown (bar chart)
+
+Top 3 improvement recommendations
+
+Cohort comparison visualization
+
+Design style:
+
+Minimal
+
+Dark theme
+
+Clean typography
+
+Fast and professional
+
+Leaderboard
+
+Anonymous by default
+
+Filter by track
+
+Show percentile bands
+
+Recommendations Engine
+
+Generate recommendations dynamically based on lowest weighted factor scores.
+
+Examples:
+Low skill_density → “Add quantified technical skills.”
+Low brand_score → “Target higher-tier internships.”
+
+NON-FUNCTIONAL REQUIREMENTS:
+
+No LinkedIn scraping
+
+No external API dependencies required for MVP
+
+Modular scoring engine
+
+Clean folder structure
+
+Production-ready deployment configuration
+
+Clear comments explaining system components
+
+Focus only on core flow:
+
+Upload → Parse → Compute Features → Score → Rank → Visualize.
+
+Do not generate filler features. Build a clean, serious analytics application.
+
+After generation, include:
+
+Full folder structure
+
+Database schema SQL
+
+API routes
+
+Parsing logic
+
+Scoring logic
+
+UI components
+
+Tailwind config
+
+End.
