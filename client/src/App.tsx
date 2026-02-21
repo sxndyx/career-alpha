@@ -3,6 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "@/lib/theme";
 import { useAuth } from "@/hooks/use-auth";
 import { AppHeader } from "@/components/app-header";
 import LandingPage from "@/pages/landing";
@@ -11,7 +12,6 @@ import SelectTrackPage from "@/pages/select-track";
 import DashboardPage from "@/pages/dashboard";
 import LeaderboardPage from "@/pages/leaderboard";
 import NotFound from "@/pages/not-found";
-import { Skeleton } from "@/components/ui/skeleton";
 
 function AuthenticatedRoutes() {
   return (
@@ -35,10 +35,8 @@ function AppContent() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="space-y-4 w-64">
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-4 w-1/2" />
+        <div className="text-center">
+          <div className="text-2xl font-mono text-muted-foreground animate-pulse tracking-widest">ca_</div>
         </div>
       </div>
     );
@@ -53,12 +51,14 @@ function AppContent() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <AppContent />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <AppContent />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
 

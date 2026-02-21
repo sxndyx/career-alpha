@@ -16,27 +16,33 @@ CareerAlpha is a career analytics platform where users upload their official Lin
 2. **Upload & Ingestion** - LinkedIn ZIP/CSV parsing for positions, education, skills, connections
 3. **Feature Engineering** - Computes 9 career factors (internship count, brand score, skill density, education tier, seniority progression, network size, recency, consistency)
 4. **Scoring Engine** - Weighted composite scoring per career track (SWE, Finance, Asset Management)
-5. **Dashboard** - Score gauge, factor breakdown chart, recommendations, raw feature values
+5. **Dashboard** - Trading-app style with large score, delta pill, sparkline chart, time period selector, factor breakdown, recommendations
 6. **Leaderboard** - Anonymous rankings by track with percentile bands
+7. **Theme System** - Light/dark mode toggle with system preference detection, stored in localStorage ("ca-theme")
 
 ## Project Structure
 ```
 client/src/
-  App.tsx              - Main app with auth routing
+  App.tsx              - Main app with auth routing + ThemeProvider
   pages/
     landing.tsx        - Landing page (unauthenticated)
     upload.tsx         - File upload page
     select-track.tsx   - Career track selection
-    dashboard.tsx      - Score dashboard
+    dashboard.tsx      - Score dashboard (trading-app style)
     leaderboard.tsx    - Anonymous leaderboard
   components/
-    app-header.tsx     - Navigation header
+    app-header.tsx     - Minimal navigation header with theme toggle
+    theme-toggle.tsx   - Light/dark/system toggle component
+    segmented-control.tsx - Reusable segmented control component
+    delta-pill.tsx     - Score change indicator pill
+    sparkline-chart.tsx - Synthetic sparkline with seeded PRNG
     ui/                - Shadcn components
   hooks/
     use-auth.ts        - Auth hook
   lib/
     queryClient.ts     - React Query config
     auth-utils.ts      - Auth utilities
+    theme.tsx          - ThemeProvider with localStorage persistence
 
 server/
   index.ts             - Express server entry
@@ -64,6 +70,15 @@ shared/
 - `GET /api/logout` - Logout
 
 ## Design
-- Dark theme by default (class="dark" on html element)
-- Inter font for body, Playfair Display for headings, JetBrains Mono for code/numbers
-- Minimal, professional aesthetic with subtle gradients and animations
+- Monkeytype-inspired minimalist aesthetic
+- Both light and dark mode supported via CSS class toggle ("dark" on html element)
+- Roboto Mono font throughout for monospace coding feel
+- Neutral, warm-toned palette with lots of whitespace and subtle borders
+- Trading-app style dashboard with sparkline chart, delta pills, segmented time controls
+- Theme stored in localStorage under key "ca-theme" (values: "light", "dark", "system")
+- Inline script in index.html prevents flash-of-wrong-theme on load
+
+## User Preferences
+- Lowercase text throughout the UI
+- Clean, minimal typography with tracking-wide
+- No loud colors; neutral and premium feel

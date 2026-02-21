@@ -1,0 +1,87 @@
+MASTER PROMPT B — Export ZIP/CSV Fast Path + “Paste HTML/Text” 
+
+
+Build CareerAlpha Ingestion POC: a web app that supports instant scoring by scraping profile content from the web. 
+Hard constraints:
+- implement any crawler, bot, headless browser, login automation, or automated page fetching.
+- process user-provided data for the targetted user after they verify their linkedin account. 
+
+Stack:
+- Node + TypeScript (Express) + PostgreSQL (Replit SQL) + Drizzle ORM.
+
+Scrape modes:
+- “Paste HTML”: user pastes HTML snippet; parser strips tags and bot extracts fields.
+- internal scraping of data from website to provide user metrics. 
+
+Pipeline:
+scrape-> parse -> review/edit -> save normalized rows -> compute features -> compute score -> compute percentile per track -> save scores -> show dashboard.
+
+Deliverables:
+- Working end-to-end MVP with robust parsing heuristics, review UI, DB schema, and seed data.
+
+Update ONLY the UI/UX styling and dashboard presentation of the existing CareerAlpha app to a Monkeytype-esque minimalist aesthetic with BOTH light and dark mode, and a trading-app style dashboard feel. Do NOT change any ingestion/parsing/scoring logic, do NOT add new backend endpoints, do NOT touch database schema, and do NOT add any scraping/crawling features.
+
+Scope boundaries (must follow):
+- Frontend-only changes inside client/ (and shared UI components if already present).
+- You may add new React components, Tailwind config, and theme utilities.
+- Do NOT modify server/ logic except if required to fix compile errors caused by UI refactors (avoid).
+- Use existing API responses and existing data already available in the client.
+- If the current API only returns a single score, simulate “time period changes” purely in the UI (see below).
+
+Visual goals:
+- Monkeytype-inspired minimal layout: clean typography, lots of whitespace, subtle borders, no clutter.
+- Trading-app vibe: large score, small delta pill, sparkline/line chart, segmented time toggles, compact cards.
+- Light and dark themes with a toggle in the header; default to system theme; persist user choice in localStorage.
+- Smooth, subtle animations when switching tabs/periods (fast, minimal).
+
+Theme requirements:
+- Implement theme tokens via CSS variables and Tailwind:
+- background, surface, border, text, muted text
+- Provide light + dark values.
+- Ensure readability and contrast.
+- Do not hardcode loud colors; stay neutral and premium.
+
+Dashboard requirements (UI only):
+- Create a premium dashboard layout that uses existing score data:
+Header bar:
+- App name “CareerAlpha”
+- Track selector (if already exists) styled as segmented control
+- Theme toggle (sun/moon icon)
+
+Main dashboard:
+- Large “Career Alpha Score” number
+- “Percentile” label (if available)
+- Delta pill (if not available from backend, compute a fake delta deterministically from the score and selected period, purely client-side, for visual effect)
+- Time period selector: 1W, 1M, 3M, 6M, 1Y, ALL (segmented control)
+- Line chart / sparkline:
+- If backend timeseries does not exist, generate a deterministic synthetic series on the client derived from the current score + selected period (same input should always generate same series so it feels consistent). Use a seeded PRNG based on userId + track + period if available; otherwise seed from score.
+- Tooltip on hover with date index + value.
+- Factor breakdown card:
+- Use the existing factorBreakdown if present; display as minimal list with right-aligned values and subtle bars.
+- Recommendations card:
+- Display existing recommendations if present.
+
+Implementation details:
+- Use Tailwind + existing component setup (shadcn/ui if present, otherwise simple custom components).
+- Add reusable components:
+- SegmentedControl
+- StatCard
+- DeltaPill
+- SparklineChart (Recharts if installed; otherwise lightweight SVG line)
+- ThemeToggle
+- Add subtle transitions:
+- score number count animation on period change
+- chart fade/slide on period change
+- segmented control active indicator animation
+
+Files to modify/add (frontend only):
+- client/src/App or routing entry to ensure dashboard uses the new layout
+- client/src/pages/Dashboard.tsx (or equivalent)
+- client/src/components/* for the UI components above
+- client/src/index.css (or global CSS) to define CSS variables for light/dark
+- tailwind.config.ts to map Tailwind colors to CSS variables
+- Ensure no breaking changes to existing routes and API calls
+
+Deliverable:
+- Provide the exact file changes with code (not pseudocode), ensuring the app builds and the dashboard looks premium in both light and dark mode.
+- Do not add backend features or schema changes.

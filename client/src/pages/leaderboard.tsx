@@ -1,11 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card } from "@/components/ui/card";
+import { SegmentedControl } from "@/components/segmented-control";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trophy, Medal, Users } from "lucide-react";
-import { TRACK_LABELS, type Track } from "@shared/schema";
+import { TRACK_LABELS, TRACKS, type Track } from "@shared/schema";
 
 interface LeaderboardEntry {
   rank: number;
@@ -13,6 +10,11 @@ interface LeaderboardEntry {
   percentile: number;
   isCurrentUser: boolean;
 }
+
+const trackSegments = TRACKS.map((t) => ({
+  value: t,
+  label: t === "swe" ? "SWE" : t === "finance" ? "IB/CF" : "AM",
+}));
 
 export default function LeaderboardPage() {
   const [selectedTrack, setSelectedTrack] = useState<Track>("swe");
@@ -26,110 +28,87 @@ export default function LeaderboardPage() {
     },
   });
 
-  const getRankIcon = (rank: number) => {
-    if (rank === 1) return <Trophy className="w-4 h-4 text-chart-5" />;
-    if (rank === 2) return <Medal className="w-4 h-4 text-muted-foreground" />;
-    if (rank === 3) return <Medal className="w-4 h-4 text-chart-5/60" />;
-    return null;
-  };
-
   const getPercentileBand = (percentile: number) => {
-    if (percentile >= 90) return { label: "Elite", variant: "default" as const };
-    if (percentile >= 75) return { label: "Strong", variant: "secondary" as const };
-    if (percentile >= 50) return { label: "Average", variant: "secondary" as const };
-    return { label: "Developing", variant: "outline" as const };
+    if (percentile >= 90) return "elite";
+    if (percentile >= 75) return "strong";
+    if (percentile >= 50) return "average";
+    return "developing";
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-3xl mx-auto px-6 py-16">
-        <div className="flex items-start justify-between gap-4 mb-10 flex-wrap">
-          <div>
-            <h1 className="font-serif text-3xl font-bold mb-2" data-testid="text-leaderboard-title">Leaderboard</h1>
-            <p className="text-muted-foreground">Anonymous rankings by career track</p>
-          </div>
-          <Select value={selectedTrack} onValueChange={(v) => setSelectedTrack(v as Track)}>
-            <SelectTrigger className="w-[220px]" data-testid="select-track-filter">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.keys(TRACK_LABELS) as Track[]).map((track) => (
-                <SelectItem key={track} value={track} data-testid={`option-track-${track}`}>
-                  {TRACK_LABELS[track]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <div className="max-w-2xl mx-auto px-6 py-12">
+      <div className="flex items-center justify-between gap-4 mb-8 flex-wrap">
+        <div>
+          <h1 className="text-lg font-medium mb-1" data-testid="text-leaderboard-title">leaderboard</h1>
+          <p className="text-xs text-muted-foreground">anonymous rankings by track</p>
         </div>
+        <SegmentedControl
+          options={trackSegments}
+          value={selectedTrack}
+          onChange={setSelectedTrack}
+          size="sm"
+        />
+      </div>
 
-        {isLoading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-16" />
-            ))}
+      {isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-12 bg-secondary/40 rounded animate-pulse" />
+          ))}
+        </div>
+      ) : !entries || entries.length === 0 ? (
+        <div className="py-20 text-center">
+          <div className="text-xs text-muted-foreground tracking-widest uppercase mb-2">no rankings</div>
+          <p className="text-xs text-muted-foreground" data-testid="text-no-entries">
+            be the first to compute a score for {TRACK_LABELS[selectedTrack].toLowerCase()}.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          <div className="flex items-center gap-4 px-4 py-2 text-xs text-muted-foreground">
+            <span className="w-8">#</span>
+            <span className="flex-1">user</span>
+            <span className="w-16 text-right">score</span>
+            <span className="w-20 text-right">band</span>
           </div>
-        ) : !entries || entries.length === 0 ? (
-          <Card className="p-12">
-            <div className="text-center">
-              <div className="w-14 h-14 rounded-md bg-muted flex items-center justify-center mx-auto mb-4">
-                <Users className="w-6 h-6 text-muted-foreground" />
+          {entries.map((entry) => {
+            const band = getPercentileBand(entry.percentile);
+            return (
+              <div
+                key={entry.rank}
+                className={`flex items-center gap-4 px-4 py-3 rounded transition-colors ${
+                  entry.isCurrentUser
+                    ? "bg-secondary/50"
+                    : "hover:bg-secondary/20"
+                }`}
+                data-testid={`row-leaderboard-${entry.rank}`}
+              >
+                <span className="w-8 text-xs font-mono text-muted-foreground">
+                  {entry.rank <= 3 ? `#${entry.rank}` : entry.rank}
+                </span>
+                <span className="flex-1 text-xs">
+                  {entry.isCurrentUser ? (
+                    <span className="font-medium">you</span>
+                  ) : (
+                    <span className="text-muted-foreground">user #{entry.rank}</span>
+                  )}
+                </span>
+                <span className="w-16 text-right text-xs font-mono" data-testid={`text-score-${entry.rank}`}>
+                  {entry.totalScore.toFixed(1)}
+                </span>
+                <span className="w-20 text-right">
+                  <span className="text-xs text-muted-foreground">{band}</span>
+                </span>
               </div>
-              <h2 className="font-semibold mb-1" data-testid="text-no-entries">No Rankings Yet</h2>
-              <p className="text-sm text-muted-foreground">
-                Be the first to compute a score for {TRACK_LABELS[selectedTrack]}.
-              </p>
-            </div>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {entries.map((entry) => {
-              const band = getPercentileBand(entry.percentile);
-              return (
-                <div
-                  key={entry.rank}
-                  className={`flex items-center gap-4 p-4 rounded-md border ${
-                    entry.isCurrentUser
-                      ? "border-primary bg-primary/5"
-                      : "border-card-border bg-card"
-                  }`}
-                  data-testid={`row-leaderboard-${entry.rank}`}
-                >
-                  <div className="w-10 text-center shrink-0">
-                    {getRankIcon(entry.rank) || (
-                      <span className="text-sm font-mono text-muted-foreground">#{entry.rank}</span>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm">
-                        {entry.isCurrentUser ? "You" : `User #${entry.rank}`}
-                      </span>
-                      {entry.isCurrentUser && <Badge variant="secondary">You</Badge>}
-                      <Badge variant={band.variant}>{band.label}</Badge>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="font-mono font-bold" data-testid={`text-score-${entry.rank}`}>
-                      {entry.totalScore.toFixed(1)}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      P{Math.round(entry.percentile)}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+            );
+          })}
+        </div>
+      )}
 
-        <div className="mt-8 p-4 rounded-md bg-card border border-card-border">
-          <div className="flex items-center gap-3">
-            <Trophy className="w-4 h-4 text-chart-5 shrink-0" />
-            <div className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">Percentile Bands:</span>{" "}
-              Elite (90th+) / Strong (75th+) / Average (50th+) / Developing (below 50th)
-            </div>
-          </div>
+      <div className="mt-8 pt-6 border-t border-border/60">
+        <div className="text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">bands:</span>{" "}
+          elite (90th+) · strong (75th+) · average (50th+) · developing (&lt;50th)
         </div>
       </div>
     </div>

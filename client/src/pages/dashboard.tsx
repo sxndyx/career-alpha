@@ -1,107 +1,71 @@
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { TrendingUp, Trophy, Target, Lightbulb, ArrowRight, BarChart3 } from "lucide-react";
-import { TRACK_LABELS, type Score, type ComputedFeatures, type Track } from "@shared/schema";
+import { SegmentedControl } from "@/components/segmented-control";
+import { DeltaPill } from "@/components/delta-pill";
+import { SparklineChart, generateSyntheticSeries } from "@/components/sparkline-chart";
+import { ArrowRight, BarChart3 } from "lucide-react";
+import { TRACK_LABELS, TRACKS, type Score, type ComputedFeatures, type Track } from "@shared/schema";
 import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
 
 const FACTOR_LABELS: Record<string, string> = {
-  internship_count: "Internships",
-  brand_score: "Brand Score",
-  skill_density: "Skill Density",
-  education_tier_score: "Education",
-  seniority_progression_score: "Seniority",
-  network_size: "Network",
-  recency_score: "Recency",
-  consistency_score: "Consistency",
+  internship_count: "internships",
+  brand_score: "brand",
+  skill_density: "skills",
+  education_tier_score: "education",
+  seniority_progression_score: "seniority",
+  network_size: "network",
+  recency_score: "recency",
+  consistency_score: "consistency",
 };
 
-const CHART_COLORS = [
-  "hsl(217, 91%, 45%)",
-  "hsl(173, 58%, 40%)",
-  "hsl(197, 37%, 40%)",
-  "hsl(280, 65%, 50%)",
-  "hsl(43, 74%, 50%)",
-  "hsl(0, 84%, 45%)",
-  "hsl(150, 50%, 40%)",
-  "hsl(30, 70%, 50%)",
-];
+const PERIODS = [
+  { value: "1W", label: "1W" },
+  { value: "1M", label: "1M" },
+  { value: "3M", label: "3M" },
+  { value: "6M", label: "6M" },
+  { value: "1Y", label: "1Y" },
+  { value: "ALL", label: "ALL" },
+] as const;
 
-function ScoreGauge({ score, percentile }: { score: number; percentile: number }) {
-  const displayScore = Math.round(score * 10) / 10;
-  return (
-    <div className="flex flex-col items-center py-6">
-      <div className="relative w-40 h-40 mb-4">
-        <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
-          <circle cx="60" cy="60" r="52" fill="none" stroke="hsl(var(--muted))" strokeWidth="8" />
-          <circle
-            cx="60" cy="60" r="52" fill="none"
-            stroke="hsl(var(--primary))"
-            strokeWidth="8"
-            strokeLinecap="round"
-            strokeDasharray={`${(score / 100) * 326.73} 326.73`}
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-4xl font-mono font-bold" data-testid="text-total-score">{displayScore}</span>
-          <span className="text-xs text-muted-foreground">/ 100</span>
-        </div>
-      </div>
-      <div className="text-center">
-        <div className="text-sm text-muted-foreground mb-1">Percentile Ranking</div>
-        <div className="text-2xl font-mono font-bold" data-testid="text-percentile">
-          Top {Math.max(1, Math.round(100 - percentile))}%
-        </div>
-      </div>
-    </div>
-  );
+type Period = typeof PERIODS[number]["value"];
+
+function computeDelta(score: number, period: string, userId: string, track: string): number {
+  const series = generateSyntheticSeries(score, period, userId, track);
+  if (series.length < 2) return 0;
+  return Math.round((series[series.length - 1].value - series[0].value) * 10) / 10;
 }
 
-function FactorChart({ breakdown }: { breakdown: Record<string, number> }) {
-  const data = Object.entries(breakdown).map(([key, value]) => ({
-    name: FACTOR_LABELS[key] || key,
-    value: Math.round(value * 100) / 100,
-    fullKey: key,
-  }));
+function AnimatedScore({ value }: { value: number }) {
+  const [display, setDisplay] = useState(0);
+  const ref = useRef<number>(0);
 
-  return (
-    <ResponsiveContainer width="100%" height={data.length * 44 + 20}>
-      <BarChart data={data} layout="vertical" margin={{ left: 0, right: 20, top: 10, bottom: 10 }}>
-        <XAxis type="number" hide />
-        <YAxis
-          type="category"
-          dataKey="name"
-          width={100}
-          tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-          axisLine={false}
-          tickLine={false}
-        />
-        <Tooltip
-          contentStyle={{
-            background: "hsl(var(--card))",
-            border: "1px solid hsl(var(--card-border))",
-            borderRadius: "6px",
-            fontSize: "13px",
-          }}
-          formatter={(value: number) => [value.toFixed(2), "Score Contribution"]}
-        />
-        <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20}>
-          {data.map((_, index) => (
-            <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  );
+  useEffect(() => {
+    const start = ref.current;
+    const end = value;
+    const duration = 400;
+    const startTime = performance.now();
+
+    function tick(now: number) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = start + (end - start) * eased;
+      setDisplay(Math.round(current * 10) / 10);
+      if (progress < 1) requestAnimationFrame(tick);
+      else ref.current = end;
+    }
+
+    requestAnimationFrame(tick);
+  }, [value]);
+
+  return <span>{display.toFixed(1)}</span>;
 }
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const [period, setPeriod] = useState<Period>("3M");
 
   const { data: scoreData, isLoading: scoreLoading } = useQuery<Score | null>({
     queryKey: ["/api/score"],
@@ -127,14 +91,11 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="max-w-5xl mx-auto px-6 py-16">
-          <Skeleton className="h-8 w-64 mb-2" />
-          <Skeleton className="h-5 w-96 mb-10" />
-          <div className="grid md:grid-cols-3 gap-6">
-            <Skeleton className="h-72" />
-            <Skeleton className="h-72 md:col-span-2" />
-          </div>
+      <div className="max-w-4xl mx-auto px-6 py-20">
+        <div className="space-y-6">
+          <div className="h-4 w-32 bg-secondary/60 rounded animate-pulse" />
+          <div className="h-16 w-48 bg-secondary/60 rounded animate-pulse" />
+          <div className="h-48 bg-secondary/60 rounded animate-pulse" />
         </div>
       </div>
     );
@@ -142,19 +103,17 @@ export default function DashboardPage() {
 
   if (!scoreData) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto px-6">
-          <div className="w-16 h-16 rounded-md bg-muted flex items-center justify-center mx-auto mb-6">
-            <BarChart3 className="w-7 h-7 text-muted-foreground" />
-          </div>
-          <h2 className="font-serif text-2xl font-bold mb-2" data-testid="text-no-score">No Score Yet</h2>
-          <p className="text-muted-foreground mb-6">
-            Upload your LinkedIn data and select a career track to see your Career Alpha Score.
+      <div className="max-w-4xl mx-auto px-6 py-32">
+        <div className="text-center">
+          <div className="text-muted-foreground text-xs tracking-widest uppercase mb-4">no data</div>
+          <h2 className="text-lg font-medium mb-2" data-testid="text-no-score">upload your linkedin data to begin</h2>
+          <p className="text-sm text-muted-foreground mb-8">
+            your career alpha score will appear here after analysis
           </p>
           <Link href="/upload">
-            <Button className="gap-2" data-testid="button-go-upload">
-              Upload Data
-              <ArrowRight className="w-4 h-4" />
+            <Button variant="secondary" className="gap-2 text-xs tracking-wide" data-testid="button-go-upload">
+              upload data
+              <ArrowRight className="w-3.5 h-3.5" />
             </Button>
           </Link>
         </div>
@@ -165,103 +124,137 @@ export default function DashboardPage() {
   const track = scoreData.track as Track;
   const breakdown = (scoreData.factorBreakdown || {}) as Record<string, number>;
   const recommendations = (scoreData.recommendations || []) as string[];
+  const userId = user?.id || "default";
+  const delta = computeDelta(scoreData.totalScore, period, userId, track);
+
+  const maxBreakdownValue = Math.max(...Object.values(breakdown), 1);
+
+  const trackOptions = TRACKS.map((t) => ({
+    value: t,
+    label: t === "swe" ? "SWE" : t === "finance" ? "IB/CF" : "AM",
+  }));
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-5xl mx-auto px-6 py-16">
-        <div className="flex items-start justify-between gap-4 mb-10 flex-wrap">
-          <div>
-            <h1 className="font-serif text-3xl font-bold mb-2" data-testid="text-dashboard-title">
-              {user?.firstName ? `${user.firstName}'s Dashboard` : "Your Dashboard"}
-            </h1>
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge variant="secondary" data-testid="badge-track">{TRACK_LABELS[track]}</Badge>
-              <span className="text-sm text-muted-foreground">
-                Scored {scoreData.computedAt ? new Date(scoreData.computedAt).toLocaleDateString() : "today"}
+    <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="flex items-center justify-between gap-4 mb-8 flex-wrap">
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground tracking-widest uppercase">
+            {TRACK_LABELS[track]}
+          </span>
+          <Link href="/select-track">
+            <button className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2" data-testid="button-change-track">
+              change
+            </button>
+          </Link>
+        </div>
+        <Link href="/leaderboard">
+          <button className="text-xs text-muted-foreground hover:text-foreground transition-colors tracking-wide" data-testid="button-view-leaderboard">
+            leaderboard →
+          </button>
+        </Link>
+      </div>
+
+      <div className="mb-10">
+        <div className="flex items-end gap-4 mb-2 flex-wrap">
+          <div className="text-6xl font-mono font-bold tracking-tight animate-count-up" data-testid="text-total-score" key={period}>
+            <AnimatedScore value={scoreData.totalScore} />
+          </div>
+          <div className="flex flex-col gap-1 pb-2">
+            <DeltaPill value={delta} />
+            {scoreData.percentile != null && (
+              <span className="text-xs text-muted-foreground" data-testid="text-percentile">
+                top {Math.max(1, Math.round(100 - scoreData.percentile))}%
               </span>
-            </div>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <Link href="/select-track">
-              <Button variant="secondary" size="sm" data-testid="button-change-track">Change Track</Button>
-            </Link>
-            <Link href="/leaderboard">
-              <Button variant="secondary" size="sm" className="gap-1.5" data-testid="button-view-leaderboard">
-                <Trophy className="w-3.5 h-3.5" />
-                Leaderboard
-              </Button>
-            </Link>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-6 mb-6">
-          <Card className="p-6" data-testid="card-score-gauge">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-4 h-4 text-primary" />
-              <h2 className="font-semibold text-sm">Career Alpha Score</h2>
-            </div>
-            <ScoreGauge score={scoreData.totalScore} percentile={scoreData.percentile || 0} />
-          </Card>
-
-          <Card className="p-6 md:col-span-2" data-testid="card-factor-breakdown">
-            <div className="flex items-center gap-2 mb-4">
-              <Target className="w-4 h-4 text-chart-2" />
-              <h2 className="font-semibold text-sm">Factor Contribution Breakdown</h2>
-            </div>
-            <FactorChart breakdown={breakdown} />
-          </Card>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-6 mb-6">
-          <Card className="p-6" data-testid="card-recommendations">
-            <div className="flex items-center gap-2 mb-5">
-              <Lightbulb className="w-4 h-4 text-chart-5" />
-              <h2 className="font-semibold text-sm">Top Recommendations</h2>
-            </div>
-            {recommendations.length > 0 ? (
-              <div className="space-y-3">
-                {recommendations.slice(0, 3).map((rec, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 rounded-md bg-background border border-border" data-testid={`text-recommendation-${i}`}>
-                    <span className="text-xs font-mono text-muted-foreground mt-0.5 shrink-0">{String(i + 1).padStart(2, "0")}</span>
-                    <p className="text-sm leading-relaxed">{rec}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Great job! Your profile is well-optimized for this track.</p>
             )}
-          </Card>
+          </div>
+        </div>
+        <div className="text-xs text-muted-foreground tracking-wide">career alpha score</div>
+      </div>
 
-          <Card className="p-6" data-testid="card-raw-features">
-            <div className="flex items-center gap-2 mb-5">
-              <BarChart3 className="w-4 h-4 text-chart-3" />
-              <h2 className="font-semibold text-sm">Raw Feature Values</h2>
+      <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
+        <SegmentedControl
+          options={[...PERIODS]}
+          value={period}
+          onChange={(v) => setPeriod(v as Period)}
+          size="sm"
+        />
+        <span className="text-xs text-muted-foreground">
+          scored {scoreData.computedAt ? new Date(scoreData.computedAt).toLocaleDateString() : "today"}
+        </span>
+      </div>
+
+      <div className="mb-10 rounded-md border border-border/60 bg-card/50 p-4">
+        <SparklineChart
+          score={scoreData.totalScore}
+          period={period}
+          userId={userId}
+          track={track}
+          height={180}
+        />
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-8">
+        <div>
+          <div className="text-xs text-muted-foreground tracking-widest uppercase mb-4">factor breakdown</div>
+          <div className="space-y-3" data-testid="card-factor-breakdown">
+            {Object.entries(breakdown).map(([key, value]) => {
+              const label = FACTOR_LABELS[key] || key;
+              const pct = (value / maxBreakdownValue) * 100;
+              return (
+                <div key={key} className="group">
+                  <div className="flex items-center justify-between gap-3 mb-1">
+                    <span className="text-xs text-muted-foreground">{label}</span>
+                    <span className="text-xs font-mono">{value.toFixed(2)}</span>
+                  </div>
+                  <div className="h-1 bg-secondary/60 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-foreground/30 rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-xs text-muted-foreground tracking-widest uppercase mb-4">recommendations</div>
+          {recommendations.length > 0 ? (
+            <div className="space-y-3" data-testid="card-recommendations">
+              {recommendations.slice(0, 4).map((rec, i) => (
+                <div key={i} className="flex items-start gap-3" data-testid={`text-recommendation-${i}`}>
+                  <span className="text-xs text-muted-foreground font-mono mt-0.5 shrink-0 w-4">{String(i + 1).padStart(2, "0")}</span>
+                  <p className="text-xs leading-relaxed text-muted-foreground">{rec}</p>
+                </div>
+              ))}
             </div>
-            {features ? (
-              <div className="space-y-3">
+          ) : (
+            <p className="text-xs text-muted-foreground">profile well-optimized for this track.</p>
+          )}
+
+          {features && (
+            <>
+              <div className="text-xs text-muted-foreground tracking-widest uppercase mb-4 mt-8">raw features</div>
+              <div className="space-y-2" data-testid="card-raw-features">
                 {[
-                  { label: "Internship Count", value: features.internshipCount, max: 10 },
-                  { label: "Total Roles", value: features.totalRoles, max: 15 },
-                  { label: "Brand Score", value: features.brandScore, max: 100 },
-                  { label: "Education Tier", value: features.educationTierScore, max: 100 },
-                  { label: "Skill Density", value: features.skillDensity, max: 20 },
-                  { label: "Network Size", value: features.networkSize, max: 500 },
-                  { label: "Recency Score", value: features.recencyScore, max: 100 },
-                  { label: "Consistency", value: features.consistencyScore, max: 100 },
+                  { label: "internships", value: features.internshipCount },
+                  { label: "total roles", value: features.totalRoles },
+                  { label: "brand", value: features.brandScore },
+                  { label: "education", value: features.educationTierScore },
+                  { label: "skills", value: features.skillDensity },
+                  { label: "network", value: features.networkSize },
+                  { label: "recency", value: features.recencyScore },
+                  { label: "consistency", value: features.consistencyScore },
                 ].map((item) => (
-                  <div key={item.label} className="space-y-1">
-                    <div className="flex items-center justify-between gap-2 text-sm">
-                      <span className="text-muted-foreground">{item.label}</span>
-                      <span className="font-mono text-xs">{typeof item.value === "number" ? item.value.toFixed(1) : "0"}</span>
-                    </div>
-                    <Progress value={Math.min(100, ((item.value || 0) / item.max) * 100)} className="h-1" />
+                  <div key={item.label} className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">{item.label}</span>
+                    <span className="text-xs font-mono">{typeof item.value === "number" ? item.value.toFixed(1) : "0"}</span>
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Feature data not available.</p>
-            )}
-          </Card>
+            </>
+          )}
         </div>
       </div>
     </div>

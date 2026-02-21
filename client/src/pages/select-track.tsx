@@ -5,30 +5,18 @@ import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { TRACK_LABELS, type Track } from "@shared/schema";
-import { Code2, Landmark, PieChart, ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 
-const trackIcons: Record<Track, typeof Code2> = {
-  swe: Code2,
-  finance: Landmark,
-  asset_management: PieChart,
+const trackShort: Record<Track, string> = {
+  swe: "SWE",
+  finance: "IB/CF",
+  asset_management: "AM",
 };
 
 const trackDescriptions: Record<Track, string> = {
-  swe: "Optimized for software engineering internships and technical roles. Weights skill density and technical brand recognition heavily.",
-  finance: "Tailored for investment banking and corporate finance paths. Prioritizes brand prestige and institutional consistency.",
-  asset_management: "Built for asset management and buy-side roles. Values internship depth, brand, and recent activity.",
-};
-
-const trackColors: Record<Track, string> = {
-  swe: "text-primary",
-  finance: "text-chart-2",
-  asset_management: "text-chart-4",
-};
-
-const trackBgColors: Record<Track, string> = {
-  swe: "bg-primary/10",
-  finance: "bg-chart-2/10",
-  asset_management: "bg-chart-4/10",
+  swe: "optimized for software engineering internships and technical roles. weights skill density and technical brand recognition heavily.",
+  finance: "tailored for investment banking and corporate finance paths. prioritizes brand prestige and institutional consistency.",
+  asset_management: "built for asset management and buy-side roles. values internship depth, brand, and recent activity.",
 };
 
 export default function SelectTrackPage() {
@@ -58,58 +46,53 @@ export default function SelectTrackPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-3xl mx-auto px-6 py-16">
-        <div className="mb-10">
-          <h1 className="font-serif text-3xl font-bold mb-2" data-testid="text-track-title">Select Career Track</h1>
-          <p className="text-muted-foreground">
-            Choose the track that matches your career goals. Each track uses different weights to compute your Career Alpha Score.
-          </p>
-        </div>
+    <div className="max-w-xl mx-auto px-6 py-12">
+      <div className="mb-8">
+        <div className="text-xs text-muted-foreground tracking-widest uppercase mb-3">step 2</div>
+        <h1 className="text-lg font-medium mb-2" data-testid="text-track-title">select career track</h1>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          each track uses different weights to compute your career alpha score.
+        </p>
+      </div>
 
-        <div className="space-y-3">
-          {(Object.keys(TRACK_LABELS) as Track[]).map((track) => {
-            const Icon = trackIcons[track];
-            const isSelected = selected === track;
-            return (
-              <button
-                key={track}
-                onClick={() => setSelected(track)}
-                className={`w-full text-left p-6 rounded-md border transition-colors ${
-                  isSelected
-                    ? "border-primary bg-primary/5"
-                    : "border-card-border bg-card"
-                }`}
-                data-testid={`button-track-${track}`}
-              >
-                <div className="flex items-start gap-4">
-                  <div className={`w-10 h-10 rounded-md ${trackBgColors[track]} flex items-center justify-center shrink-0`}>
-                    <Icon className={`w-5 h-5 ${trackColors[track]}`} />
+      <div className="space-y-2">
+        {(Object.keys(TRACK_LABELS) as Track[]).map((track) => {
+          const isSelected = selected === track;
+          return (
+            <button
+              key={track}
+              onClick={() => setSelected(track)}
+              className={`w-full text-left p-5 rounded border transition-colors ${
+                isSelected
+                  ? "border-foreground/40 bg-secondary/40"
+                  : "border-border/60 hover:border-border"
+              }`}
+              data-testid={`button-track-${track}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-mono font-bold">{trackShort[track]}</span>
+                    {isSelected && <Check className="w-3.5 h-3.5 text-foreground" />}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold">{TRACK_LABELS[track]}</h3>
-                      {isSelected && <Check className="w-4 h-4 text-primary" />}
-                    </div>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{trackDescriptions[track]}</p>
-                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{trackDescriptions[track]}</p>
                 </div>
-              </button>
-            );
-          })}
-        </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
-        <div className="mt-8 flex items-center justify-between gap-4">
-          <Button
-            onClick={handleScore}
-            disabled={!selected || scoreMutation.isPending}
-            className="gap-2"
-            data-testid="button-compute-score"
-          >
-            {scoreMutation.isPending ? "Computing Score..." : "Compute Career Alpha"}
-            {!scoreMutation.isPending && <ArrowRight className="w-4 h-4" />}
-          </Button>
-        </div>
+      <div className="mt-6">
+        <Button
+          onClick={handleScore}
+          disabled={!selected || scoreMutation.isPending}
+          className="gap-2 text-xs tracking-wide"
+          data-testid="button-compute-score"
+        >
+          {scoreMutation.isPending ? "computing..." : "compute career alpha"}
+          {!scoreMutation.isPending && <ArrowRight className="w-3.5 h-3.5" />}
+        </Button>
       </div>
     </div>
   );
