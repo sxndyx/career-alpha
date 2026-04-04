@@ -1,0 +1,156 @@
+Refactor CareerAlpha into a scalable, production-ready architecture.
+
+CRITICAL RULES:
+- Do NOT break existing functionality
+- Do NOT introduce fake/synthetic data anywhere
+- Do NOT change UI styling in this step
+- Focus only on backend, data model, and scoring integrity
+
+----------------------------------------
+1. DYNAMIC CAREER TRACKS (REMOVE HARDCODING)
+----------------------------------------
+
+Create new table: career_tracks
+- id (uuid)
+- slug (text, unique)
+- name (text)
+- description (text)
+- is_active (boolean)
+- created_at (timestamp)
+
+Update track_weights:
+- Replace track (text) with track_id (foreign key)
+
+Seed initial tracks:
+- swe
+- finance
+- asset_management
+
+Update scoring:
+- Remove hardcoded TRACK_WEIGHTS
+- Fetch weights dynamically from DB
+- Use track_id everywhere instead of string matching
+
+----------------------------------------
+2. REAL SCORE HISTORY (NO FAKE GRAPH DATA)
+----------------------------------------
+
+Create table: score_history
+- id (uuid)
+- user_id
+- track_id
+- score (real)
+- percentile (real)
+- rank (optional)
+- factor_breakdown (jsonb)
+- created_at (timestamp)
+
+Update scoring pipeline:
+- After computing score:
+  - Compare with latest score_history entry
+  - Only insert if score OR percentile changed
+
+Add endpoint:
+GET /api/score-history?track_id=...
+
+Return ordered historical data.
+
+----------------------------------------
+3. PROFILE CONFIG / OVERRIDES LAYER
+----------------------------------------
+
+Create table: user_profile_config
+- id
+- user_id
+- overrides (jsonb)
+- created_at
+- updated_at
+
+Overrides must support:
+- include/exclude roles
+- internship override
+- company tier override
+- school tier override
+- target track preference
+
+Modify computeFeatures:
+- Merge parsed data + overrides
+- Overrides take priority
+
+DO NOT mutate original parsed data.
+
+----------------------------------------
+4. REMOVE "FAKE" SCORING ASSUMPTIONS
+----------------------------------------
+
+Fix weak logic:
+
+- Replace hardcoded company/school sets with:
+  new tables:
+    company_scores(company_name, score)
+    school_scores(school_name, score)
+
+- Load scores dynamically from DB
+
+- Improve consistencyScore:
+  - Use actual date gaps between roles
+  - Estimate tenure using startDate/endDate
+  - Penalize gaps, reward continuity
+
+- DO NOT use arbitrary constants like "5 / totalRoles"
+- All calculations must be derived from actual data
+
+----------------------------------------
+5. PROPER PERCENTILE CALCULATION
+----------------------------------------
+
+Fix computePercentile:
+
+- Must be track-specific
+- Use:
+  percentile = (below + 0.5 * equal) / total * 100
+
+- Query scores ONLY within same track
+
+----------------------------------------
+6. AUTH ARCHITECTURE (FUTURE-PROOF)
+----------------------------------------
+
+Create table: auth_identities
+- id
+- user_id
+- provider ("replit", future "google")
+- provider_user_id
+- email
+
+Rules:
+- users table = primary identity
+- auth_identities = login methods
+
+Update auth flow:
+- Link provider identity to user
+- Do NOT rely on provider-specific IDs anywhere else
+
+Keep Replit auth working.
+
+----------------------------------------
+7. DATA INTEGRITY RULES
+----------------------------------------
+
+- NEVER generate synthetic graph data
+- NEVER fabricate score history
+- Graph must reflect ONLY real stored score_history entries
+- If no data → show empty state
+
+----------------------------------------
+DELIVERABLE
+----------------------------------------
+
+- Updated schema (Drizzle)
+- Migration/seed scripts
+- Refactored scoring.ts
+- Updated computeFeatures
+- New endpoints
+- Clean modular architecture
+
+Ensure app still runs.

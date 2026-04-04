@@ -3,9 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { SegmentedControl } from "@/components/segmented-control";
 import { DeltaPill } from "@/components/delta-pill";
-import { SparklineChart, generateSyntheticSeries } from "@/components/sparkline-chart";
+import { SparklineChart, filterHistoryByPeriod } from "@/components/sparkline-chart";
 import { ArrowRight } from "lucide-react";
-import { type Score, type ComputedFeatures, type CareerTrack } from "@shared/schema";
+import { type Score, type ComputedFeatures, type CareerTrack, type ScoreHistory } from "@shared/schema";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 
@@ -30,12 +30,6 @@ const PERIODS = [
 ] as const;
 
 type Period = typeof PERIODS[number]["value"];
-
-function computeDelta(score: number, period: string, userId: string, track: string): number {
-  const series = generateSyntheticSeries(score, period, userId, track);
-  if (series.length < 2) return 0;
-  return Math.round((series[series.length - 1].value - series[0].value) * 10) / 10;
-}
 
 function AnimatedScore({ value }: { value: number }) {
   const [display, setDisplay] = useState(0);
@@ -65,7 +59,7 @@ function AnimatedScore({ value }: { value: number }) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [period, setPeriod] = useState<Period>("3M");
+  const [period, setPeriod] = useState<Period>("ALL");
 
   const { data: scoreData, isLoading: scoreLoading } = useQuery<Score | null>({
     queryKey: ["/api/score"],
@@ -89,6 +83,19 @@ export default function DashboardPage() {
 
   const { data: tracks } = useQuery<CareerTrack[]>({
     queryKey: ["/api/tracks"],
+  });
+
+  const track = scoreData?.track ?? null;
+
+  const { data: scoreHistoryData } = useQuery<ScoreHistory[]>({
+    queryKey: ["/api/score-history", track],
+    queryFn: async () => {
+      if (!track) return [];
+      const res = await fetch(`/api/score-history?track=${track}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!track,
   });
 
   const isLoading = scoreLoading || featuresLoading;
@@ -125,12 +132,17 @@ export default function DashboardPage() {
     );
   }
 
-  const track = scoreData.track;
-  const trackName = tracks?.find((t) => t.slug === track)?.name || track;
+  const currentTrack = scoreData.track;
+  const trackName = tracks?.find((t) => t.slug === currentTrack)?.name || currentTrack;
   const breakdown = (scoreData.factorBreakdown || {}) as Record<string, number>;
   const recommendations = (scoreData.recommendations || []) as string[];
-  const userId = user?.id || "default";
-  const delta = computeDelta(scoreData.totalScore, period, userId, track);
+
+  const filteredHistory = filterHistoryByPeriod(scoreHistoryData ?? [], period);
+
+  const delta =
+    filteredHistory.length >= 2
+      ? Math.round((filteredHistory[filteredHistory.length - 1].value - filteredHistory[0].value) * 10) / 10
+      : 0;
 
   const maxBreakdownValue = Math.max(...Object.values(breakdown), 1);
 
@@ -156,7 +168,7 @@ export default function DashboardPage() {
 
       <div className="mb-10">
         <div className="flex items-end gap-4 mb-2 flex-wrap">
-          <div className="text-6xl font-mono font-bold tracking-tight animate-count-up" data-testid="text-total-score" key={period}>
+          <div className="text-6xl font-mono font-bold tracking-tight" data-testid="text-total-score">
             <AnimatedScore value={scoreData.totalScore} />
           </div>
           <div className="flex flex-col gap-1 pb-2">
@@ -184,13 +196,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="mb-10 rounded-md border border-border/60 bg-card/50 p-4">
-        <SparklineChart
-          score={scoreData.totalScore}
-          period={period}
-          userId={userId}
-          track={track}
-          height={180}
-        />
+        <SparklineChart data={filteredHistory} height={180} />
       </div>
 
       <div className="grid md:grid-cols-2 gap-8">

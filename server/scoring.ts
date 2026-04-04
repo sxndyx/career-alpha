@@ -1,60 +1,14 @@
-import type { Position, Education, Skill, Connection, ComputedFeatures } from "@shared/schema";
+import type { Position, Education, Skill, Connection, ComputedFeatures, ProfileOverrides } from "@shared/schema";
 
-const TIER_1_COMPANIES = new Set([
-  "google", "meta", "apple", "amazon", "microsoft", "netflix", "nvidia",
-  "goldman sachs", "morgan stanley", "j.p. morgan", "jpmorgan", "blackrock",
-  "citadel", "two sigma", "jane street", "de shaw", "bridgewater",
-  "mckinsey", "bain", "boston consulting", "bcg",
-  "stripe", "airbnb", "uber", "openai", "palantir", "tesla", "spacex",
-  "databricks", "snowflake", "coinbase", "robinhood", "bloomberg",
-  "barclays", "deutsche bank", "ubs", "credit suisse", "citi", "citigroup",
-  "lazard", "evercore", "moelis", "centerview", "pjt partners",
-  "kkr", "carlyle", "apollo", "blackstone", "warburg pincus",
-  "fidelity", "vanguard", "t. rowe price", "wellington", "pimco",
-]);
-
-const TIER_2_COMPANIES = new Set([
-  "salesforce", "adobe", "oracle", "ibm", "intel", "qualcomm", "cisco",
-  "linkedin", "twitter", "snap", "pinterest", "spotify", "dropbox",
-  "square", "block", "shopify", "atlassian", "vmware", "workday",
-  "deloitte", "pwc", "kpmg", "ey", "ernst & young", "accenture",
-  "rbc", "td", "bmo", "scotiabank", "hsbc", "bnp paribas",
-  "wells fargo", "bank of america", "charles schwab",
-  "state street", "invesco", "legg mason", "franklin templeton",
-]);
-
-const TIER_1_SCHOOLS = new Set([
-  "harvard", "stanford", "mit", "princeton", "yale", "columbia",
-  "university of pennsylvania", "upenn", "wharton",
-  "university of chicago", "duke", "northwestern", "caltech",
-  "dartmouth", "brown", "cornell", "johns hopkins",
-  "london school of economics", "lse", "oxford", "cambridge",
-  "insead", "london business school",
-  "berkeley", "uc berkeley", "ucla", "carnegie mellon",
-  "georgia institute of technology", "georgia tech",
-  "university of michigan", "nyu", "new york university",
-]);
-
-const TIER_2_SCHOOLS = new Set([
-  "university of virginia", "uva", "university of texas",
-  "university of illinois", "purdue", "penn state",
-  "university of wisconsin", "ohio state", "indiana university",
-  "boston university", "boston college", "emory", "vanderbilt",
-  "rice", "georgetown", "notre dame", "wake forest",
-  "university of florida", "university of washington",
-  "university of southern california", "usc",
-  "tufts", "tulane", "lehigh", "villanova",
-  "toronto", "mcgill", "waterloo", "ubc",
-  "imperial college", "ucl", "university college london",
-  "eth zurich", "epfl", "tsinghua", "peking university",
-]);
-
-function matchesTier(name: string, tierSet: Set<string>): boolean {
+function matchesTier(name: string, entries: Array<{ nameKey: string; score: number }>): number {
   const lower = name.toLowerCase().trim();
-  for (const entry of tierSet) {
-    if (lower.includes(entry)) return true;
+  let best = 0;
+  for (const entry of entries) {
+    if (lower.includes(entry.nameKey)) {
+      best = Math.max(best, entry.score);
+    }
   }
-  return false;
+  return best;
 }
 
 function isInternship(title: string | null): boolean {
@@ -63,75 +17,160 @@ function isInternship(title: string | null): boolean {
   return lower.includes("intern") || lower.includes("co-op") || lower.includes("trainee");
 }
 
+const MONTH_MAP: Record<string, number> = {
+  jan: 0, january: 0,
+  feb: 1, february: 1,
+  mar: 2, march: 2,
+  apr: 3, april: 3,
+  may: 4,
+  jun: 5, june: 5,
+  jul: 6, july: 6,
+  aug: 7, august: 7,
+  sep: 8, september: 8,
+  oct: 9, october: 9,
+  nov: 10, november: 10,
+  dec: 11, december: 11,
+};
+
+function parsePositionDate(dateStr: string | null | undefined): Date | null {
+  if (!dateStr) return null;
+  const s = dateStr.trim().toLowerCase();
+  if (s.includes("present") || s.includes("current")) return new Date();
+
+  const iso = dateStr.match(/^(\d{4})-(\d{2})/);
+  if (iso) return new Date(parseInt(iso[1]), parseInt(iso[2]) - 1, 1);
+
+  const monthYear = s.match(/^([a-z]+)\s+(\d{4})$/);
+  if (monthYear) {
+    const m = MONTH_MAP[monthYear[1]];
+    if (m !== undefined) return new Date(parseInt(monthYear[2]), m, 1);
+  }
+
+  const yearOnly = s.match(/^\d{4}$/);
+  if (yearOnly) return new Date(parseInt(yearOnly[0]), 0, 1);
+
+  return null;
+}
+
+function computeConsistencyScore(positionList: Position[]): number {
+  if (positionList.length === 0) return 0;
+
+  const parsed = positionList
+    .map((p) => ({
+      start: parsePositionDate(p.startDate),
+      end: parsePositionDate(p.endDate) ?? new Date(),
+    }))
+    .filter((r) => r.start !== null)
+    .sort((a, b) => a.start!.getTime() - b.start!.getTime());
+
+  if (parsed.length === 0) return Math.min(100, positionList.length * 15);
+
+  const msPerMonth = 1000 * 60 * 60 * 24 * 30.44;
+
+  let totalTenureMonths = 0;
+  let totalGapMonths = 0;
+
+  for (let i = 0; i < parsed.length; i++) {
+    const { start, end } = parsed[i];
+    const tenure = Math.max(0, (end.getTime() - start!.getTime()) / msPerMonth);
+    totalTenureMonths += tenure;
+
+    if (i > 0) {
+      const prevEnd = parsed[i - 1].end;
+      const gap = Math.max(0, (start!.getTime() - prevEnd.getTime()) / msPerMonth);
+      totalGapMonths += gap;
+    }
+  }
+
+  const tenureScore = Math.min(60, (totalTenureMonths / 36) * 60);
+  const continuityBonus = Math.min(25, parsed.length * 5);
+  const gapPenalty = Math.min(40, totalGapMonths * 1.5);
+
+  return Math.max(0, Math.min(100, tenureScore + continuityBonus - gapPenalty));
+}
+
 export function computeFeatures(
   userPositions: Position[],
   userEducation: Education[],
   userSkills: Skill[],
-  userConnections: Connection[]
+  userConnections: Connection[],
+  companyScoreList: Array<{ nameKey: string; score: number }>,
+  schoolScoreList: Array<{ nameKey: string; score: number }>,
+  overrides?: ProfileOverrides
 ): Omit<ComputedFeatures, "id" | "computedAt"> & { userId: string } {
-  const userId = userPositions[0]?.userId || userEducation[0]?.userId || userSkills[0]?.userId || userConnections[0]?.userId || "";
+  const userId =
+    userPositions[0]?.userId ||
+    userEducation[0]?.userId ||
+    userSkills[0]?.userId ||
+    userConnections[0]?.userId ||
+    "";
 
-  const internshipCount = userPositions.filter((p) => isInternship(p.title)).length;
-  const totalRoles = userPositions.length;
+  const excludeIds = new Set(overrides?.excludePositionIds ?? []);
+  const effectivePositions = userPositions.filter((p) => !excludeIds.has(p.id));
+
+  const internshipCount =
+    overrides?.internshipOverride !== undefined
+      ? overrides.internshipOverride
+      : effectivePositions.filter((p) => isInternship(p.title)).length;
+
+  const totalRoles = effectivePositions.length;
 
   let maxBrandScore = 0;
   let brandSum = 0;
-  for (const pos of userPositions) {
+  for (const pos of effectivePositions) {
     const company = pos.company || "";
-    if (matchesTier(company, TIER_1_COMPANIES)) {
-      brandSum += 100;
-      maxBrandScore = Math.max(maxBrandScore, 100);
-    } else if (matchesTier(company, TIER_2_COMPANIES)) {
-      brandSum += 60;
-      maxBrandScore = Math.max(maxBrandScore, 60);
-    } else if (company) {
-      brandSum += 20;
-      maxBrandScore = Math.max(maxBrandScore, 20);
-    }
+    const override = overrides?.companyTierOverrides?.[company.toLowerCase()];
+    const tier = override !== undefined ? override : matchesTier(company, companyScoreList);
+
+    brandSum += tier;
+    maxBrandScore = Math.max(maxBrandScore, tier);
   }
-  const brandScore = totalRoles > 0 ? Math.min(100, (brandSum / totalRoles + maxBrandScore) / 2) : 0;
+  const brandScore =
+    totalRoles > 0 ? Math.min(100, (brandSum / totalRoles + maxBrandScore) / 2) : 0;
 
   let educationTierScore = 0;
   for (const edu of userEducation) {
     const inst = edu.institution || "";
-    if (matchesTier(inst, TIER_1_SCHOOLS)) {
-      educationTierScore = Math.max(educationTierScore, 100);
-    } else if (matchesTier(inst, TIER_2_SCHOOLS)) {
-      educationTierScore = Math.max(educationTierScore, 60);
-    } else if (inst) {
-      educationTierScore = Math.max(educationTierScore, 25);
-    }
+    const override = overrides?.schoolTierOverrides?.[inst.toLowerCase()];
+    const tier = override !== undefined ? override : matchesTier(inst, schoolScoreList);
+    educationTierScore = Math.max(educationTierScore, tier);
   }
 
-  const skillDensity = totalRoles > 0 ? userSkills.length / totalRoles : userSkills.length;
+  const skillDensity =
+    totalRoles > 0 ? userSkills.length / totalRoles : userSkills.length;
   const networkSize = userConnections.length;
 
   const now = new Date();
   let recencyScore = 0;
-  for (const pos of userPositions) {
+  for (const pos of effectivePositions) {
     if (!pos.endDate || pos.endDate.toLowerCase().includes("present")) {
       recencyScore = 100;
       break;
     }
-    try {
-      const endYear = parseInt(pos.endDate.split(/[\s,/-]/).pop() || "0");
-      if (endYear >= now.getFullYear() - 1) {
+    const endDate = parsePositionDate(pos.endDate);
+    if (endDate) {
+      const monthsAgo =
+        (now.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+      if (monthsAgo <= 12) {
         recencyScore = Math.max(recencyScore, 90);
-      } else if (endYear >= now.getFullYear() - 2) {
+      } else if (monthsAgo <= 24) {
         recencyScore = Math.max(recencyScore, 70);
-      } else if (endYear >= now.getFullYear() - 3) {
+      } else if (monthsAgo <= 36) {
         recencyScore = Math.max(recencyScore, 50);
       } else {
         recencyScore = Math.max(recencyScore, 20);
       }
-    } catch {
+    } else {
       recencyScore = Math.max(recencyScore, 30);
     }
   }
 
-  const seniorityLevels = ["intern", "junior", "associate", "analyst", "senior", "lead", "principal", "director", "vp", "cto", "ceo", "head", "manager"];
+  const seniorityLevels = [
+    "intern", "junior", "associate", "analyst", "senior", "lead",
+    "principal", "director", "vp", "cto", "ceo", "head", "manager",
+  ];
   let maxSeniority = 0;
-  for (const pos of userPositions) {
+  for (const pos of effectivePositions) {
     const titleLower = (pos.title || "").toLowerCase();
     for (let i = 0; i < seniorityLevels.length; i++) {
       if (titleLower.includes(seniorityLevels[i])) {
@@ -139,14 +178,12 @@ export function computeFeatures(
       }
     }
   }
-  const seniorityProgressionScore = Math.min(100, (maxSeniority / (seniorityLevels.length - 1)) * 100);
+  const seniorityProgressionScore = Math.min(
+    100,
+    (maxSeniority / (seniorityLevels.length - 1)) * 100
+  );
 
-  let consistencyScore = 0;
-  if (totalRoles > 0) {
-    const hasGaps = totalRoles > 1;
-    const avgTenure = totalRoles > 0 ? Math.max(1, 5 / totalRoles) : 0;
-    consistencyScore = Math.min(100, totalRoles * 15 + (hasGaps ? 10 : 30) + avgTenure * 10);
-  }
+  const consistencyScore = computeConsistencyScore(effectivePositions);
 
   return {
     userId,
@@ -181,7 +218,10 @@ function normalizeFeature(key: string, value: number): number {
   }
 }
 
-export function computeScore(features: ComputedFeatures, weights: Record<string, number>) {
+export function computeScore(
+  features: ComputedFeatures,
+  weights: Record<string, number>
+) {
   const featureMap: Record<string, number> = {
     internship_count: features.internshipCount || 0,
     brand_score: features.brandScore || 0,
@@ -208,9 +248,11 @@ export function computeScore(features: ComputedFeatures, weights: Record<string,
   return { totalScore, breakdown };
 }
 
-export function generateRecommendations(breakdown: Record<string, number>, weights: Record<string, number>): string[] {
+export function generateRecommendations(
+  breakdown: Record<string, number>,
+  weights: Record<string, number>
+): string[] {
   const recommendations: string[] = [];
-
   const sorted = Object.entries(breakdown).sort(([, a], [, b]) => a - b);
 
   for (const [key] of sorted) {
@@ -220,28 +262,44 @@ export function generateRecommendations(breakdown: Record<string, number>, weigh
 
     switch (key) {
       case "internship_count":
-        recommendations.push("Pursue additional internships or co-op experiences to strengthen your practical background.");
+        recommendations.push(
+          "Pursue additional internships or co-op experiences to strengthen your practical background."
+        );
         break;
       case "brand_score":
-        recommendations.push("Target higher-tier companies and institutions for your next role to boost brand recognition.");
+        recommendations.push(
+          "Target higher-tier companies and institutions for your next role to boost brand recognition."
+        );
         break;
       case "skill_density":
-        recommendations.push("Add more quantified technical skills to your profile. Include specific tools, languages, and frameworks.");
+        recommendations.push(
+          "Add more quantified technical skills to your profile. Include specific tools, languages, and frameworks."
+        );
         break;
       case "education_tier_score":
-        recommendations.push("Consider graduate programs at top-tier institutions or professional certifications to elevate your education profile.");
+        recommendations.push(
+          "Consider graduate programs at top-tier institutions or professional certifications to elevate your education profile."
+        );
         break;
       case "seniority_progression_score":
-        recommendations.push("Seek roles with increasing responsibility and seniority-indicating titles to show career progression.");
+        recommendations.push(
+          "Seek roles with increasing responsibility and seniority-indicating titles to show career progression."
+        );
         break;
       case "network_size":
-        recommendations.push("Expand your professional network by connecting with peers, recruiters, and industry leaders.");
+        recommendations.push(
+          "Expand your professional network by connecting with peers, recruiters, and industry leaders."
+        );
         break;
       case "recency_score":
-        recommendations.push("Keep your profile current with recent experiences. Active profiles rank significantly higher.");
+        recommendations.push(
+          "Keep your profile current with recent experiences. Active profiles rank significantly higher."
+        );
         break;
       case "consistency_score":
-        recommendations.push("Build a consistent work history with clear progression. Avoid unexplained career gaps.");
+        recommendations.push(
+          "Build a consistent work history with clear progression. Avoid unexplained career gaps."
+        );
         break;
     }
   }
@@ -250,7 +308,9 @@ export function generateRecommendations(breakdown: Record<string, number>, weigh
 }
 
 export function computePercentile(userScore: number, allScores: number[]): number {
-  if (allScores.length <= 1) return 100;
+  if (allScores.length === 0) return 100;
+  const total = allScores.length;
   const below = allScores.filter((s) => s < userScore).length;
-  return Math.round((below / (allScores.length - 1)) * 100 * 10) / 10;
+  const equal = allScores.filter((s) => s === userScore).length;
+  return Math.round(((below + 0.5 * equal) / total) * 100 * 10) / 10;
 }

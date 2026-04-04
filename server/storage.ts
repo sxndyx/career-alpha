@@ -1,11 +1,15 @@
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, asc } from "drizzle-orm";
 import {
-  positions, education, skills, connections, computedFeatures, scores, trackWeights, careerTracks,
+  positions, education, skills, connections, computedFeatures, scores,
+  trackWeights, careerTracks, scoreHistory, userProfileConfig,
+  companyScores, schoolScores, authIdentities,
   type InsertPosition, type InsertEducation, type InsertSkill, type InsertConnection,
   type InsertComputedFeatures, type InsertScore, type InsertCareerTrack,
-  type Position, type Education, type Skill, type Connection, type ComputedFeatures, type Score,
-  type CareerTrack, type TrackWeight,
+  type InsertScoreHistory, type InsertUserProfileConfig, type ProfileOverrides,
+  type Position, type Education, type Skill, type Connection, type ComputedFeatures,
+  type Score, type CareerTrack, type TrackWeight, type ScoreHistory,
+  type UserProfileConfig, type CompanyScore, type SchoolScore, type AuthIdentity,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -28,6 +32,17 @@ export interface IStorage {
   upsertCareerTrack(data: InsertCareerTrack): Promise<CareerTrack>;
   getTrackWeightsBySlug(slug: string): Promise<Record<string, number> | undefined>;
   upsertTrackWeights(trackId: string, weights: Record<string, number>): Promise<void>;
+  insertScoreHistory(data: InsertScoreHistory): Promise<ScoreHistory>;
+  getScoreHistory(userId: string, track: string): Promise<ScoreHistory[]>;
+  getLatestScoreHistoryEntry(userId: string, track: string): Promise<ScoreHistory | undefined>;
+  getUserProfileConfig(userId: string): Promise<UserProfileConfig | undefined>;
+  upsertUserProfileConfig(userId: string, overrides: ProfileOverrides): Promise<UserProfileConfig>;
+  getCompanyScores(): Promise<CompanyScore[]>;
+  getSchoolScores(): Promise<SchoolScore[]>;
+  upsertCompanyScore(nameKey: string, score: number): Promise<void>;
+  upsertSchoolScore(nameKey: string, score: number): Promise<void>;
+  upsertAuthIdentity(userId: string, provider: string, providerUserId: string, email?: string): Promise<AuthIdentity>;
+  getAuthIdentity(provider: string, providerUserId: string): Promise<AuthIdentity | undefined>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -80,7 +95,10 @@ class DatabaseStorage implements IStorage {
   }
 
   async getComputedFeatures(userId: string): Promise<ComputedFeatures | undefined> {
-    const [result] = await db.select().from(computedFeatures).where(eq(computedFeatures.userId, userId));
+    const [result] = await db
+      .select()
+      .from(computedFeatures)
+      .where(eq(computedFeatures.userId, userId));
     return result;
   }
 
@@ -122,6 +140,7 @@ class DatabaseStorage implements IStorage {
   }
 
   async clearUserData(userId: string): Promise<void> {
+    await db.delete(scoreHistory).where(eq(scoreHistory.userId, userId));
     await db.delete(scores).where(eq(scores.userId, userId));
     await db.delete(computedFeatures).where(eq(computedFeatures.userId, userId));
     await db.delete(positions).where(eq(positions.userId, userId));
@@ -173,6 +192,116 @@ class DatabaseStorage implements IStorage {
       .insert(trackWeights)
       .values({ trackId, weights })
       .onConflictDoUpdate({ target: trackWeights.trackId, set: { weights } });
+  }
+
+  async insertScoreHistory(data: InsertScoreHistory): Promise<ScoreHistory> {
+    const [result] = await db.insert(scoreHistory).values(data).returning();
+    return result;
+  }
+
+  async getScoreHistory(userId: string, track: string): Promise<ScoreHistory[]> {
+    return db
+      .select()
+      .from(scoreHistory)
+      .where(and(eq(scoreHistory.userId, userId), eq(scoreHistory.track, track)))
+      .orderBy(asc(scoreHistory.createdAt));
+  }
+
+  async getLatestScoreHistoryEntry(userId: string, track: string): Promise<ScoreHistory | undefined> {
+    const [result] = await db
+      .select()
+      .from(scoreHistory)
+      .where(and(eq(scoreHistory.userId, userId), eq(scoreHistory.track, track)))
+      .orderBy(desc(scoreHistory.createdAt))
+      .limit(1);
+    return result;
+  }
+
+  async getUserProfileConfig(userId: string): Promise<UserProfileConfig | undefined> {
+    const [result] = await db
+      .select()
+      .from(userProfileConfig)
+      .where(eq(userProfileConfig.userId, userId));
+    return result;
+  }
+
+  async upsertUserProfileConfig(userId: string, overrides: ProfileOverrides): Promise<UserProfileConfig> {
+    const [result] = await db
+      .insert(userProfileConfig)
+      .values({ userId, overrides })
+      .onConflictDoUpdate({
+        target: userProfileConfig.userId,
+        set: { overrides, updatedAt: new Date() },
+      })
+      .returning();
+    return result;
+  }
+
+  async getCompanyScores(): Promise<CompanyScore[]> {
+    return db.select().from(companyScores);
+  }
+
+  async getSchoolScores(): Promise<SchoolScore[]> {
+    return db.select().from(schoolScores);
+  }
+
+  async upsertCompanyScore(nameKey: string, score: number): Promise<void> {
+    await db
+      .insert(companyScores)
+      .values({ nameKey, score })
+      .onConflictDoUpdate({ target: companyScores.nameKey, set: { score } });
+  }
+
+  async upsertSchoolScore(nameKey: string, score: number): Promise<void> {
+    await db
+      .insert(schoolScores)
+      .values({ nameKey, score })
+      .onConflictDoUpdate({ target: schoolScores.nameKey, set: { score } });
+  }
+
+  async upsertAuthIdentity(
+    userId: string,
+    provider: string,
+    providerUserId: string,
+    email?: string
+  ): Promise<AuthIdentity> {
+    const existing = await db
+      .select()
+      .from(authIdentities)
+      .where(
+        and(
+          eq(authIdentities.provider, provider),
+          eq(authIdentities.providerUserId, providerUserId)
+        )
+      );
+
+    if (existing.length > 0) {
+      const [result] = await db
+        .update(authIdentities)
+        .set({ userId, email: email ?? existing[0].email })
+        .where(eq(authIdentities.id, existing[0].id))
+        .returning();
+      return result;
+    }
+
+    const [result] = await db
+      .insert(authIdentities)
+      .values({ userId, provider, providerUserId, email })
+      .returning();
+    return result;
+  }
+
+  async getAuthIdentity(provider: string, providerUserId: string): Promise<AuthIdentity | undefined> {
+    const [result] = await db
+      .select()
+      .from(authIdentities)
+      .where(
+        and(
+          eq(authIdentities.provider, provider),
+          eq(authIdentities.providerUserId, providerUserId)
+        )
+      );
+    return result;
   }
 }
 

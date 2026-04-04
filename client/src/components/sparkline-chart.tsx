@@ -1,86 +1,54 @@
-import { useState } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import type { ScoreHistory } from "@shared/schema";
 
-function seededRandom(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 16807 + 0) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
+export interface ScorePoint {
+  date: string;
+  value: number;
+  label: string;
 }
 
-function hashString(str: string): number {
-  let hash = 5381;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash);
+const PERIOD_MS: Record<string, number> = {
+  "1W": 7 * 24 * 60 * 60 * 1000,
+  "1M": 30 * 24 * 60 * 60 * 1000,
+  "3M": 90 * 24 * 60 * 60 * 1000,
+  "6M": 180 * 24 * 60 * 60 * 1000,
+  "1Y": 365 * 24 * 60 * 60 * 1000,
+  "ALL": Infinity,
+};
+
+export function filterHistoryByPeriod(history: ScoreHistory[], period: string): ScorePoint[] {
+  const cutoff = period === "ALL" ? 0 : Date.now() - (PERIOD_MS[period] ?? PERIOD_MS["ALL"]);
+  return history
+    .filter((h) => h.createdAt && new Date(h.createdAt).getTime() >= cutoff)
+    .map((h) => ({
+      date: h.createdAt ? new Date(h.createdAt).toISOString() : "",
+      value: h.score,
+      label: h.createdAt
+        ? new Date(h.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        : "",
+    }));
 }
 
 interface SparklineChartProps {
-  score: number;
-  period: string;
-  userId?: string;
-  track?: string;
+  data: ScorePoint[];
   height?: number;
 }
 
-const PERIOD_POINTS: Record<string, number> = {
-  "1W": 7,
-  "1M": 30,
-  "3M": 13,
-  "6M": 26,
-  "1Y": 52,
-  "ALL": 104,
-};
-
-const PERIOD_LABELS: Record<string, string> = {
-  "1W": "day",
-  "1M": "day",
-  "3M": "week",
-  "6M": "week",
-  "1Y": "week",
-  "ALL": "week",
-};
-
-export function generateSyntheticSeries(
-  score: number,
-  period: string,
-  userId: string = "default",
-  track: string = "swe"
-): { index: number; value: number; label: string }[] {
-  const seedStr = `${userId}-${track}-${period}`;
-  const seed = hashString(seedStr);
-  const rng = seededRandom(seed);
-
-  const points = PERIOD_POINTS[period] || 30;
-  const unit = PERIOD_LABELS[period] || "day";
-
-  const volatility = 0.06;
-  const startOffset = (rng() - 0.5) * score * 0.3;
-  const startValue = Math.max(5, Math.min(95, score + startOffset));
-
-  const data: { index: number; value: number; label: string }[] = [];
-  let current = startValue;
-
-  for (let i = 0; i < points; i++) {
-    const noise = (rng() - 0.5) * 2 * volatility * score;
-    const drift = ((score - current) / (points - i)) * 0.4;
-    current = Math.max(2, Math.min(98, current + drift + noise));
-    data.push({
-      index: i,
-      value: Math.round(current * 10) / 10,
-      label: `${unit} ${i + 1}`,
-    });
+export function SparklineChart({ data, height = 200 }: SparklineChartProps) {
+  if (data.length === 0) {
+    return (
+      <div
+        className="flex items-center justify-center text-muted-foreground"
+        style={{ height }}
+        data-testid="sparkline-empty"
+      >
+        <div className="text-center">
+          <div className="text-xs tracking-widest uppercase mb-1">no history</div>
+          <p className="text-xs">score history will appear here after each computation</p>
+        </div>
+      </div>
+    );
   }
-
-  data[data.length - 1].value = score;
-
-  return data;
-}
-
-export function SparklineChart({ score, period, userId, track, height = 200 }: SparklineChartProps) {
-  const data = generateSyntheticSeries(score, period, userId, track);
 
   const minVal = Math.min(...data.map((d) => d.value));
   const maxVal = Math.max(...data.map((d) => d.value));
@@ -91,11 +59,11 @@ export function SparklineChart({ score, period, userId, track, height = 200 }: S
   const fillColor = isPositive ? "hsl(var(--ca-positive))" : "hsl(var(--ca-negative))";
 
   return (
-    <div className="animate-fade-slide" key={period} data-testid="sparkline-chart">
+    <div className="animate-fade-slide" data-testid="sparkline-chart">
       <ResponsiveContainer width="100%" height={height}>
         <AreaChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
           <defs>
-            <linearGradient id={`gradient-${period}`} x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="sparkline-gradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={fillColor} stopOpacity={0.15} />
               <stop offset="100%" stopColor={fillColor} stopOpacity={0} />
             </linearGradient>
@@ -119,7 +87,7 @@ export function SparklineChart({ score, period, userId, track, height = 200 }: S
             dataKey="value"
             stroke={strokeColor}
             strokeWidth={1.5}
-            fill={`url(#gradient-${period})`}
+            fill="url(#sparkline-gradient)"
             dot={false}
             activeDot={{ r: 3, stroke: strokeColor, strokeWidth: 1.5, fill: "hsl(var(--background))" }}
           />

@@ -8,6 +8,20 @@ import { computeFeatures, computeScore, generateRecommendations, computePercenti
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
+function linkAuthIdentity(req: any): void {
+  try {
+    const claims = req.user?.claims;
+    if (!claims?.sub) return;
+    storage.upsertAuthIdentity(
+      claims.sub,
+      "replit",
+      claims.sub,
+      claims.email ?? undefined
+    ).catch(() => {});
+  } catch {
+  }
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -15,7 +29,8 @@ export async function registerRoutes(
   await setupAuth(app);
   registerAuthRoutes(app);
 
-  app.get("/api/tracks", isAuthenticated, async (_req, res) => {
+  app.get("/api/tracks", isAuthenticated, async (req: any, res) => {
+    linkAuthIdentity(req);
     try {
       const tracks = await storage.getCareerTracks();
       res.json(tracks);
@@ -49,14 +64,23 @@ export async function registerRoutes(
         storage.insertConnections(parsed.connections),
       ]);
 
-      const [posResult, eduResult, skillResult, connResult] = await Promise.all([
-        storage.getPositionsByUser(userId),
-        storage.getEducationByUser(userId),
-        storage.getSkillsByUser(userId),
-        storage.getConnectionsByUser(userId),
-      ]);
+      const [posResult, eduResult, skillResult, connResult, companyScoreList, schoolScoreList] =
+        await Promise.all([
+          storage.getPositionsByUser(userId),
+          storage.getEducationByUser(userId),
+          storage.getSkillsByUser(userId),
+          storage.getConnectionsByUser(userId),
+          storage.getCompanyScores(),
+          storage.getSchoolScores(),
+        ]);
 
-      const features = computeFeatures(posResult, eduResult, skillResult, connResult);
+      const profileConfig = await storage.getUserProfileConfig(userId);
+      const overrides = profileConfig?.overrides;
+
+      const features = computeFeatures(
+        posResult, eduResult, skillResult, connResult,
+        companyScoreList, schoolScoreList, overrides
+      );
 
       await storage.upsertComputedFeatures(features);
 
@@ -116,6 +140,20 @@ export async function registerRoutes(
         recommendations,
       });
 
+      const latestHistory = await storage.getLatestScoreHistoryEntry(userId, track);
+      const scoreDelta = Math.abs((latestHistory?.score ?? -1) - totalScore);
+      const percentileDelta = Math.abs((latestHistory?.percentile ?? -1) - percentile);
+
+      if (!latestHistory || scoreDelta > 0.01 || percentileDelta > 0.5) {
+        await storage.insertScoreHistory({
+          userId,
+          track,
+          score: totalScore,
+          percentile,
+          factorBreakdown: breakdown,
+        });
+      }
+
       const otherScores = await storage.getScoresByTrack(track);
       for (const s of otherScores) {
         if (s.userId === userId) continue;
@@ -150,6 +188,27 @@ export async function registerRoutes(
       res.json(score);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to fetch score" });
+    }
+  });
+
+  app.get("/api/score-history", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const track = req.query.track as string;
+
+      if (!track) {
+        return res.status(400).json({ message: "track query parameter required" });
+      }
+
+      const careerTrack = await storage.getCareerTrackBySlug(track);
+      if (!careerTrack) {
+        return res.status(400).json({ message: "Invalid track" });
+      }
+
+      const history = await storage.getScoreHistory(userId, track);
+      res.json(history);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch score history" });
     }
   });
 
@@ -188,6 +247,27 @@ export async function registerRoutes(
       res.json(leaderboard);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to fetch leaderboard" });
+    }
+  });
+
+  app.get("/api/profile-config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const config = await storage.getUserProfileConfig(userId);
+      res.json(config?.overrides ?? {});
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch profile config" });
+    }
+  });
+
+  app.put("/api/profile-config", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const overrides = req.body;
+      const config = await storage.upsertUserProfileConfig(userId, overrides);
+      res.json(config.overrides);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to update profile config" });
     }
   });
 
