@@ -15,6 +15,15 @@ export async function registerRoutes(
   await setupAuth(app);
   registerAuthRoutes(app);
 
+  app.get("/api/tracks", isAuthenticated, async (_req, res) => {
+    try {
+      const tracks = await storage.getCareerTracks();
+      res.json(tracks);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch tracks" });
+    }
+  });
+
   app.post("/api/upload", isAuthenticated, upload.single("file"), async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -71,8 +80,18 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const { track } = req.body;
 
-      if (!track || !["swe", "finance", "asset_management"].includes(track)) {
+      if (!track || typeof track !== "string") {
         return res.status(400).json({ message: "Invalid track" });
+      }
+
+      const careerTrack = await storage.getCareerTrackBySlug(track);
+      if (!careerTrack || !careerTrack.isActive) {
+        return res.status(400).json({ message: "Invalid track" });
+      }
+
+      const weights = await storage.getTrackWeightsBySlug(track);
+      if (!weights) {
+        return res.status(400).json({ message: "No weights configured for this track" });
       }
 
       const features = await storage.getComputedFeatures(userId);
@@ -80,8 +99,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Please upload your LinkedIn data first" });
       }
 
-      const { totalScore, breakdown } = computeScore(features, track);
-      const recommendations = generateRecommendations(breakdown, track);
+      const { totalScore, breakdown } = computeScore(features, weights);
+      const recommendations = generateRecommendations(breakdown, weights);
 
       const allTrackScores = await storage.getScoresByTrack(track);
       const allScoreValues = allTrackScores.map((s) => s.totalScore);
@@ -152,7 +171,8 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const { track } = req.params;
 
-      if (!["swe", "finance", "asset_management"].includes(track)) {
+      const careerTrack = await storage.getCareerTrackBySlug(track);
+      if (!careerTrack) {
         return res.status(400).json({ message: "Invalid track" });
       }
 

@@ -15,10 +15,11 @@ CareerAlpha is a career analytics platform where users upload their official Lin
 1. **Authentication** - Replit Auth with session management
 2. **Upload & Ingestion** - LinkedIn ZIP/CSV parsing for positions, education, skills, connections
 3. **Feature Engineering** - Computes 9 career factors (internship count, brand score, skill density, education tier, seniority progression, network size, recency, consistency)
-4. **Scoring Engine** - Weighted composite scoring per career track (SWE, Finance, Asset Management)
-5. **Dashboard** - Trading-app style with large score, delta pill, sparkline chart, time period selector, factor breakdown, recommendations
-6. **Leaderboard** - Anonymous rankings by track with percentile bands
-7. **Theme System** - Light/dark mode toggle with system preference detection, stored in localStorage ("ca-theme")
+4. **Scoring Engine** - Weighted composite scoring per career track; weights fetched dynamically from DB (career_tracks + track_weights tables)
+5. **Dynamic Career Tracks** - Tracks stored in `career_tracks` table (slug, name, description, is_active); weights stored in `track_weights` with FK to `career_tracks.id`; frontend fetches tracks via `GET /api/tracks`
+6. **Dashboard** - Trading-app style with large score, delta pill, sparkline chart, time period selector, factor breakdown, recommendations
+7. **Leaderboard** - Anonymous rankings by track with percentile bands
+8. **Theme System** - Light/dark mode toggle with system preference detection, stored in localStorage ("ca-theme")
 
 ## Project Structure
 ```
@@ -60,6 +61,7 @@ shared/
 ```
 
 ## API Routes
+- `GET /api/tracks` - Get all active career tracks (dynamic, from DB)
 - `POST /api/upload` - Upload LinkedIn data (multipart form)
 - `POST /api/score` - Compute score for selected track
 - `GET /api/score` - Get latest score

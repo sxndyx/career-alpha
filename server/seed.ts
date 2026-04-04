@@ -1,10 +1,73 @@
 import { db } from "./db";
-import { positions, education, skills, connections, computedFeatures, scores } from "@shared/schema";
+import { positions, education, skills, connections, computedFeatures, scores, careerTracks, trackWeights } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 const SEED_USER_IDS = ["seed_user_1", "seed_user_2", "seed_user_3", "seed_user_4", "seed_user_5"];
 
+const INITIAL_TRACKS = [
+  {
+    slug: "swe",
+    name: "Software Engineering",
+    description: "optimized for software engineering internships and technical roles. weights skill density and technical brand recognition heavily.",
+    isActive: true,
+    weights: {
+      internship_count: 0.25,
+      brand_score: 0.20,
+      skill_density: 0.20,
+      education_tier_score: 0.15,
+      seniority_progression_score: 0.10,
+      network_size: 0.10,
+    },
+  },
+  {
+    slug: "finance",
+    name: "Investment Banking / Corporate Finance",
+    description: "tailored for investment banking and corporate finance paths. prioritizes brand prestige and institutional consistency.",
+    isActive: true,
+    weights: {
+      brand_score: 0.30,
+      internship_count: 0.25,
+      education_tier_score: 0.20,
+      consistency_score: 0.15,
+      network_size: 0.10,
+    },
+  },
+  {
+    slug: "asset_management",
+    name: "Asset Management",
+    description: "built for asset management and buy-side roles. values internship depth, brand, and recent activity.",
+    isActive: true,
+    weights: {
+      internship_count: 0.30,
+      brand_score: 0.25,
+      education_tier_score: 0.20,
+      recency_score: 0.15,
+      network_size: 0.10,
+    },
+  },
+];
+
+async function seedCareerTracks() {
+  for (const track of INITIAL_TRACKS) {
+    const [upserted] = await db
+      .insert(careerTracks)
+      .values({ slug: track.slug, name: track.name, description: track.description, isActive: track.isActive })
+      .onConflictDoUpdate({
+        target: careerTracks.slug,
+        set: { name: track.name, description: track.description, isActive: track.isActive },
+      })
+      .returning();
+
+    await db
+      .insert(trackWeights)
+      .values({ trackId: upserted.id, weights: track.weights })
+      .onConflictDoUpdate({ target: trackWeights.trackId, set: { weights: track.weights } });
+  }
+}
+
 export async function seedDatabase() {
+  await seedCareerTracks();
+
   const existing = await db.select().from(scores).limit(1);
   if (existing.length > 0) return;
 
@@ -79,6 +142,8 @@ export async function seedDatabase() {
     },
   ];
 
+  const { computeFeatures, computeScore, generateRecommendations, computePercentile } = await import("./scoring");
+
   for (const profile of seedProfiles) {
     await db.insert(positions).values(
       profile.positions.map((p) => ({
@@ -119,13 +184,18 @@ export async function seedDatabase() {
     const userSkills = await db.select().from(skills).where(eq(skills.userId, profile.userId));
     const userConnections = await db.select().from(connections).where(eq(connections.userId, profile.userId));
 
-    const { computeFeatures, computeScore, generateRecommendations, computePercentile } = await import("./scoring");
     const features = computeFeatures(userPositions, userEducation, userSkills, userConnections);
     features.networkSize = profile.connections;
     await db.insert(computedFeatures).values(features);
 
-    const { totalScore, breakdown } = computeScore(features as any, profile.track);
-    const recs = generateRecommendations(breakdown, profile.track);
+    const [trackRow] = await db.select().from(careerTracks).where(eq(careerTracks.slug, profile.track));
+    const [twRow] = trackRow
+      ? await db.select().from(trackWeights).where(eq(trackWeights.trackId, trackRow.id))
+      : [undefined];
+
+    const weights = twRow?.weights || {};
+    const { totalScore, breakdown } = computeScore(features as any, weights);
+    const recs = generateRecommendations(breakdown, weights);
 
     await db.insert(scores).values({
       userId: profile.userId,
@@ -137,9 +207,9 @@ export async function seedDatabase() {
     });
   }
 
-  const tracks = ["swe", "finance", "asset_management"];
-  for (const track of tracks) {
-    const trackScores = await db.select().from(scores).where(eq(scores.track, track));
+  const slugs = ["swe", "finance", "asset_management"];
+  for (const slug of slugs) {
+    const trackScores = await db.select().from(scores).where(eq(scores.track, slug));
     const allValues = trackScores.map((s) => s.totalScore);
     for (const s of trackScores) {
       const { computePercentile } = await import("./scoring");

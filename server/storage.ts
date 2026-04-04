@@ -1,10 +1,11 @@
 import { db } from "./db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import {
-  positions, education, skills, connections, computedFeatures, scores, trackWeights,
+  positions, education, skills, connections, computedFeatures, scores, trackWeights, careerTracks,
   type InsertPosition, type InsertEducation, type InsertSkill, type InsertConnection,
-  type InsertComputedFeatures, type InsertScore,
-  type Position, type Education, type Skill, type Connection, type ComputedFeatures, type Score, type TrackWeight,
+  type InsertComputedFeatures, type InsertScore, type InsertCareerTrack,
+  type Position, type Education, type Skill, type Connection, type ComputedFeatures, type Score,
+  type CareerTrack, type TrackWeight,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -22,8 +23,11 @@ export interface IStorage {
   getLatestScore(userId: string): Promise<Score | undefined>;
   getScoresByTrack(track: string): Promise<Score[]>;
   clearUserData(userId: string): Promise<void>;
-  getTrackWeights(track: string): Promise<TrackWeight | undefined>;
-  upsertTrackWeights(track: string, weights: Record<string, number>): Promise<void>;
+  getCareerTracks(): Promise<CareerTrack[]>;
+  getCareerTrackBySlug(slug: string): Promise<CareerTrack | undefined>;
+  upsertCareerTrack(data: InsertCareerTrack): Promise<CareerTrack>;
+  getTrackWeightsBySlug(slug: string): Promise<Record<string, number> | undefined>;
+  upsertTrackWeights(trackId: string, weights: Record<string, number>): Promise<void>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -126,16 +130,49 @@ class DatabaseStorage implements IStorage {
     await db.delete(connections).where(eq(connections.userId, userId));
   }
 
-  async getTrackWeights(track: string): Promise<TrackWeight | undefined> {
-    const [result] = await db.select().from(trackWeights).where(eq(trackWeights.track, track));
+  async getCareerTracks(): Promise<CareerTrack[]> {
+    return db
+      .select()
+      .from(careerTracks)
+      .where(eq(careerTracks.isActive, true))
+      .orderBy(careerTracks.createdAt);
+  }
+
+  async getCareerTrackBySlug(slug: string): Promise<CareerTrack | undefined> {
+    const [result] = await db
+      .select()
+      .from(careerTracks)
+      .where(eq(careerTracks.slug, slug));
     return result;
   }
 
-  async upsertTrackWeights(track: string, weights: Record<string, number>): Promise<void> {
+  async upsertCareerTrack(data: InsertCareerTrack): Promise<CareerTrack> {
+    const [result] = await db
+      .insert(careerTracks)
+      .values(data)
+      .onConflictDoUpdate({
+        target: careerTracks.slug,
+        set: { name: data.name, description: data.description, isActive: data.isActive },
+      })
+      .returning();
+    return result;
+  }
+
+  async getTrackWeightsBySlug(slug: string): Promise<Record<string, number> | undefined> {
+    const track = await this.getCareerTrackBySlug(slug);
+    if (!track) return undefined;
+    const [tw] = await db
+      .select()
+      .from(trackWeights)
+      .where(eq(trackWeights.trackId, track.id));
+    return tw?.weights;
+  }
+
+  async upsertTrackWeights(trackId: string, weights: Record<string, number>): Promise<void> {
     await db
       .insert(trackWeights)
-      .values({ track, weights })
-      .onConflictDoUpdate({ target: trackWeights.track, set: { weights } });
+      .values({ trackId, weights })
+      .onConflictDoUpdate({ target: trackWeights.trackId, set: { weights } });
   }
 }
 

@@ -1,32 +1,24 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { TRACK_LABELS, type Track } from "@shared/schema";
+import { type CareerTrack } from "@shared/schema";
 import { ArrowRight, Check } from "lucide-react";
-
-const trackShort: Record<Track, string> = {
-  swe: "SWE",
-  finance: "IB/CF",
-  asset_management: "AM",
-};
-
-const trackDescriptions: Record<Track, string> = {
-  swe: "optimized for software engineering internships and technical roles. weights skill density and technical brand recognition heavily.",
-  finance: "tailored for investment banking and corporate finance paths. prioritizes brand prestige and institutional consistency.",
-  asset_management: "built for asset management and buy-side roles. values internship depth, brand, and recent activity.",
-};
 
 export default function SelectTrackPage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [selected, setSelected] = useState<Track | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+
+  const { data: tracks, isLoading: tracksLoading } = useQuery<CareerTrack[]>({
+    queryKey: ["/api/tracks"],
+  });
 
   const scoreMutation = useMutation({
-    mutationFn: async (track: Track) => {
+    mutationFn: async (track: string) => {
       const res = await apiRequest("POST", "/api/score", { track });
       return res.json();
     },
@@ -56,37 +48,45 @@ export default function SelectTrackPage() {
       </div>
 
       <div className="space-y-2">
-        {(Object.keys(TRACK_LABELS) as Track[]).map((track) => {
-          const isSelected = selected === track;
-          return (
-            <button
-              key={track}
-              onClick={() => setSelected(track)}
-              className={`w-full text-left p-5 rounded border transition-colors ${
-                isSelected
-                  ? "border-foreground/40 bg-secondary/40"
-                  : "border-border/60 hover:border-border"
-              }`}
-              data-testid={`button-track-${track}`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-mono font-bold">{trackShort[track]}</span>
-                    {isSelected && <Check className="w-3.5 h-3.5 text-foreground" />}
+        {tracksLoading ? (
+          <>
+            <div className="h-20 bg-secondary/40 rounded border border-border/60 animate-pulse" />
+            <div className="h-20 bg-secondary/40 rounded border border-border/60 animate-pulse" />
+            <div className="h-20 bg-secondary/40 rounded border border-border/60 animate-pulse" />
+          </>
+        ) : (
+          (tracks || []).map((track) => {
+            const isSelected = selected === track.slug;
+            return (
+              <button
+                key={track.slug}
+                onClick={() => setSelected(track.slug)}
+                className={`w-full text-left p-5 rounded border transition-colors ${
+                  isSelected
+                    ? "border-foreground/40 bg-secondary/40"
+                    : "border-border/60 hover:border-border"
+                }`}
+                data-testid={`button-track-${track.slug}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-mono font-bold">{track.name}</span>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-foreground" />}
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{track.description}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{trackDescriptions[track]}</p>
                 </div>
-              </div>
-            </button>
-          );
-        })}
+              </button>
+            );
+          })
+        )}
       </div>
 
       <div className="mt-6">
         <Button
           onClick={handleScore}
-          disabled={!selected || scoreMutation.isPending}
+          disabled={!selected || scoreMutation.isPending || tracksLoading}
           className="gap-2 text-xs tracking-wide"
           data-testid="button-compute-score"
         >

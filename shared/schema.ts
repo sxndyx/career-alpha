@@ -1,7 +1,7 @@
 export * from "./models/auth";
 
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, real, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, real, timestamp, jsonb, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -65,9 +65,18 @@ export const scores = pgTable("scores", {
   computedAt: timestamp("computed_at").defaultNow(),
 });
 
+export const careerTracks = pgTable("career_tracks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const trackWeights = pgTable("track_weights", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  track: text("track").notNull().unique(),
+  trackId: varchar("track_id").notNull().unique().references(() => careerTracks.id),
   weights: jsonb("weights").$type<Record<string, number>>().notNull(),
 });
 
@@ -77,6 +86,7 @@ export const insertSkillSchema = createInsertSchema(skills).omit({ id: true });
 export const insertConnectionSchema = createInsertSchema(connections).omit({ id: true });
 export const insertComputedFeaturesSchema = createInsertSchema(computedFeatures).omit({ id: true, computedAt: true });
 export const insertScoreSchema = createInsertSchema(scores).omit({ id: true, computedAt: true });
+export const insertCareerTrackSchema = createInsertSchema(careerTracks).omit({ id: true, createdAt: true });
 
 export type InsertPosition = z.infer<typeof insertPositionSchema>;
 export type InsertEducation = z.infer<typeof insertEducationSchema>;
@@ -84,6 +94,7 @@ export type InsertSkill = z.infer<typeof insertSkillSchema>;
 export type InsertConnection = z.infer<typeof insertConnectionSchema>;
 export type InsertComputedFeatures = z.infer<typeof insertComputedFeaturesSchema>;
 export type InsertScore = z.infer<typeof insertScoreSchema>;
+export type InsertCareerTrack = z.infer<typeof insertCareerTrackSchema>;
 
 export type Position = typeof positions.$inferSelect;
 export type Education = typeof education.$inferSelect;
@@ -91,13 +102,5 @@ export type Skill = typeof skills.$inferSelect;
 export type Connection = typeof connections.$inferSelect;
 export type ComputedFeatures = typeof computedFeatures.$inferSelect;
 export type Score = typeof scores.$inferSelect;
+export type CareerTrack = typeof careerTracks.$inferSelect;
 export type TrackWeight = typeof trackWeights.$inferSelect;
-
-export const TRACKS = ["swe", "finance", "asset_management"] as const;
-export type Track = typeof TRACKS[number];
-
-export const TRACK_LABELS: Record<Track, string> = {
-  swe: "Software Engineering",
-  finance: "Investment Banking / Corporate Finance",
-  asset_management: "Asset Management",
-};

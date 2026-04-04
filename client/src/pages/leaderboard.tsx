@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SegmentedControl } from "@/components/segmented-control";
-import { Badge } from "@/components/ui/badge";
-import { TRACK_LABELS, TRACKS, type Track } from "@shared/schema";
+import { type CareerTrack } from "@shared/schema";
 
 interface LeaderboardEntry {
   rank: number;
@@ -11,13 +10,19 @@ interface LeaderboardEntry {
   isCurrentUser: boolean;
 }
 
-const trackSegments = TRACKS.map((t) => ({
-  value: t,
-  label: t === "swe" ? "SWE" : t === "finance" ? "IB/CF" : "AM",
-}));
-
 export default function LeaderboardPage() {
-  const [selectedTrack, setSelectedTrack] = useState<Track>("swe");
+  const [selectedTrack, setSelectedTrack] = useState<string>("swe");
+
+  const { data: tracks } = useQuery<CareerTrack[]>({
+    queryKey: ["/api/tracks"],
+  });
+
+  const trackSegments = (tracks || []).map((t) => ({
+    value: t.slug,
+    label: t.slug === "swe" ? "SWE" : t.slug === "finance" ? "IB/CF" : t.slug === "asset_management" ? "AM" : t.name,
+  }));
+
+  const selectedTrackName = tracks?.find((t) => t.slug === selectedTrack)?.name || selectedTrack;
 
   const { data: entries, isLoading } = useQuery<LeaderboardEntry[]>({
     queryKey: ["/api/leaderboard", selectedTrack],
@@ -42,12 +47,14 @@ export default function LeaderboardPage() {
           <h1 className="text-lg font-medium mb-1" data-testid="text-leaderboard-title">leaderboard</h1>
           <p className="text-xs text-muted-foreground">anonymous rankings by track</p>
         </div>
-        <SegmentedControl
-          options={trackSegments}
-          value={selectedTrack}
-          onChange={setSelectedTrack}
-          size="sm"
-        />
+        {trackSegments.length > 0 && (
+          <SegmentedControl
+            options={trackSegments}
+            value={selectedTrack}
+            onChange={setSelectedTrack}
+            size="sm"
+          />
+        )}
       </div>
 
       {isLoading ? (
@@ -60,7 +67,7 @@ export default function LeaderboardPage() {
         <div className="py-20 text-center">
           <div className="text-xs text-muted-foreground tracking-widest uppercase mb-2">no rankings</div>
           <p className="text-xs text-muted-foreground" data-testid="text-no-entries">
-            be the first to compute a score for {TRACK_LABELS[selectedTrack].toLowerCase()}.
+            be the first to compute a score for {selectedTrackName.toLowerCase()}.
           </p>
         </div>
       ) : (

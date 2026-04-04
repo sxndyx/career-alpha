@@ -4,8 +4,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { SegmentedControl } from "@/components/segmented-control";
 import { DeltaPill } from "@/components/delta-pill";
 import { SparklineChart, generateSyntheticSeries } from "@/components/sparkline-chart";
-import { ArrowRight, BarChart3 } from "lucide-react";
-import { TRACK_LABELS, TRACKS, type Score, type ComputedFeatures, type Track } from "@shared/schema";
+import { ArrowRight } from "lucide-react";
+import { type Score, type ComputedFeatures, type CareerTrack } from "@shared/schema";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 
@@ -87,6 +87,10 @@ export default function DashboardPage() {
     },
   });
 
+  const { data: tracks } = useQuery<CareerTrack[]>({
+    queryKey: ["/api/tracks"],
+  });
+
   const isLoading = scoreLoading || featuresLoading;
 
   if (isLoading) {
@@ -121,7 +125,8 @@ export default function DashboardPage() {
     );
   }
 
-  const track = scoreData.track as Track;
+  const track = scoreData.track;
+  const trackName = tracks?.find((t) => t.slug === track)?.name || track;
   const breakdown = (scoreData.factorBreakdown || {}) as Record<string, number>;
   const recommendations = (scoreData.recommendations || []) as string[];
   const userId = user?.id || "default";
@@ -129,17 +134,12 @@ export default function DashboardPage() {
 
   const maxBreakdownValue = Math.max(...Object.values(breakdown), 1);
 
-  const trackOptions = TRACKS.map((t) => ({
-    value: t,
-    label: t === "swe" ? "SWE" : t === "finance" ? "IB/CF" : "AM",
-  }));
-
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
       <div className="flex items-center justify-between gap-4 mb-8 flex-wrap">
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground tracking-widest uppercase">
-            {TRACK_LABELS[track]}
+            {trackName}
           </span>
           <Link href="/select-track">
             <button className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2" data-testid="button-change-track">

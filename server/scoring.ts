@@ -1,4 +1,4 @@
-import type { Position, Education, Skill, Connection, ComputedFeatures, Track } from "@shared/schema";
+import type { Position, Education, Skill, Connection, ComputedFeatures } from "@shared/schema";
 
 const TIER_1_COMPANIES = new Set([
   "google", "meta", "apple", "amazon", "microsoft", "netflix", "nvidia",
@@ -162,31 +162,6 @@ export function computeFeatures(
   };
 }
 
-const TRACK_WEIGHTS: Record<string, Record<string, number>> = {
-  swe: {
-    internship_count: 0.25,
-    brand_score: 0.20,
-    skill_density: 0.20,
-    education_tier_score: 0.15,
-    seniority_progression_score: 0.10,
-    network_size: 0.10,
-  },
-  finance: {
-    brand_score: 0.30,
-    internship_count: 0.25,
-    education_tier_score: 0.20,
-    consistency_score: 0.15,
-    network_size: 0.10,
-  },
-  asset_management: {
-    internship_count: 0.30,
-    brand_score: 0.25,
-    education_tier_score: 0.20,
-    recency_score: 0.15,
-    network_size: 0.10,
-  },
-};
-
 function normalizeFeature(key: string, value: number): number {
   switch (key) {
     case "internship_count":
@@ -206,10 +181,7 @@ function normalizeFeature(key: string, value: number): number {
   }
 }
 
-export function computeScore(features: ComputedFeatures, track: string) {
-  const weights = TRACK_WEIGHTS[track];
-  if (!weights) throw new Error(`Unknown track: ${track}`);
-
+export function computeScore(features: ComputedFeatures, weights: Record<string, number>) {
   const featureMap: Record<string, number> = {
     internship_count: features.internshipCount || 0,
     brand_score: features.brandScore || 0,
@@ -236,14 +208,10 @@ export function computeScore(features: ComputedFeatures, track: string) {
   return { totalScore, breakdown };
 }
 
-export function generateRecommendations(breakdown: Record<string, number>, track: string): string[] {
-  const weights = TRACK_WEIGHTS[track];
-  if (!weights) return [];
-
+export function generateRecommendations(breakdown: Record<string, number>, weights: Record<string, number>): string[] {
   const recommendations: string[] = [];
 
-  const sorted = Object.entries(breakdown)
-    .sort(([, a], [, b]) => a - b);
+  const sorted = Object.entries(breakdown).sort(([, a], [, b]) => a - b);
 
   for (const [key] of sorted) {
     if (recommendations.length >= 3) break;
