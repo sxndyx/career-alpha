@@ -39,6 +39,42 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUserSettings(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      res.json({
+        displayName: user.displayName ?? null,
+        showOnLeaderboard: user.showOnLeaderboard,
+        dailyUpdatesEnabled: user.dailyUpdatesEnabled,
+        email: user.email ?? null,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch settings" });
+    }
+  });
+
+  app.put("/api/settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { displayName, showOnLeaderboard, dailyUpdatesEnabled } = req.body;
+      const updated = await storage.updateUserSettings(userId, {
+        ...(displayName !== undefined && { displayName: displayName || null }),
+        ...(showOnLeaderboard !== undefined && { showOnLeaderboard: Boolean(showOnLeaderboard) }),
+        ...(dailyUpdatesEnabled !== undefined && { dailyUpdatesEnabled: Boolean(dailyUpdatesEnabled) }),
+      });
+      res.json({
+        displayName: updated.displayName ?? null,
+        showOnLeaderboard: updated.showOnLeaderboard,
+        dailyUpdatesEnabled: updated.dailyUpdatesEnabled,
+        email: updated.email ?? null,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to update settings" });
+    }
+  });
+
   app.post("/api/upload", isAuthenticated, upload.single("file"), async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -225,6 +261,26 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/positions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const result = await storage.getPositionsByUser(userId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch positions" });
+    }
+  });
+
+  app.get("/api/education", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const result = await storage.getEducationByUser(userId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch education" });
+    }
+  });
+
   app.get("/api/leaderboard/:track", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -235,15 +291,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid track" });
       }
 
-      const allScores = await storage.getScoresByTrack(track);
-
-      const leaderboard = allScores.map((s, index) => ({
-        rank: index + 1,
-        totalScore: s.totalScore,
-        percentile: s.percentile || 0,
-        isCurrentUser: s.userId === userId,
-      }));
-
+      const leaderboard = await storage.getLeaderboardByTrack(track, userId);
       res.json(leaderboard);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to fetch leaderboard" });

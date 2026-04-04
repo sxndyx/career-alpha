@@ -20,8 +20,11 @@ CareerAlpha is a career analytics platform where users upload their official Lin
 6. **Score History** - Real score_history table; graph shows actual historical data (no synthetic data); only inserts when score or percentile changes meaningfully
 7. **Profile Overrides** - user_profile_config table stores per-user overrides (exclude roles, internship override, tier overrides); computeFeatures merges overrides without mutating source data
 8. **Dashboard** - Trading-app style; sparkline uses real score history; empty state when no history; delta computed from real data
-9. **Leaderboard** - Anonymous rankings by track with percentile bands
+9. **Leaderboard** - Rankings by track with percentile bands; shows display_name if user opted in (showOnLeaderboard=true), else "anonymous"
 10. **Theme System** - Light/dark mode toggle with system preference detection, stored in localStorage ("ca-theme")
+11. **Settings Page** - /settings page for display name, leaderboard opt-in toggle, daily email update toggle; links to Profile Adjustments
+12. **Profile Adjustments** - /profile-config page; per-position include/exclude toggles, internship count override, company/school tier overrides
+13. **Daily Email Updates** - node-cron job at 8 AM ET; sends Resend email when score changes for users with dailyUpdatesEnabled=true; RESEND_API_KEY env var required
 
 ## Database Tables
 - `users`, `sessions` — auth (from Replit integration)
@@ -45,7 +48,9 @@ client/src/
     upload.tsx         - File upload page
     select-track.tsx   - Career track selection (fetches from /api/tracks)
     dashboard.tsx      - Score dashboard; real score history chart
-    leaderboard.tsx    - Anonymous leaderboard (dynamic tracks)
+    leaderboard.tsx    - Leaderboard (shows display_name if opted in, else anonymous)
+    settings.tsx       - User settings (display name, leaderboard toggle, daily email toggle)
+    profile-config.tsx - Profile adjustments (position toggles, internship override, tier overrides)
   components/
     app-header.tsx     - Minimal navigation header with theme toggle
     theme-toggle.tsx   - Light/dark/system toggle component
@@ -61,13 +66,15 @@ client/src/
     theme.tsx          - ThemeProvider with localStorage persistence
 
 server/
-  index.ts             - Express server entry
+  index.ts             - Express server entry; starts daily job
   routes.ts            - All API routes
   storage.ts           - Database operations
   db.ts                - Database connection
   parser.ts            - LinkedIn CSV/ZIP parsing
   scoring.ts           - Feature computation, scoring, recommendations
   seed.ts              - Database seeding (tracks, company/school scores, sample data)
+  email.ts             - Resend email sending (score update emails)
+  daily-job.ts         - node-cron job (8 AM ET); recomputes scores, sends emails on change
   replit_integrations/auth/ - Replit Auth integration
 
 shared/
@@ -82,9 +89,13 @@ shared/
 - `GET /api/score` - Get latest score
 - `GET /api/score-history?track=<slug>` - Get ordered score history for a track
 - `GET /api/features` - Get computed features
-- `GET /api/leaderboard/:track` - Get leaderboard for a track
+- `GET /api/positions` - Get user's parsed positions (for profile config UI)
+- `GET /api/education` - Get user's parsed education (for profile config UI)
+- `GET /api/leaderboard/:track` - Get leaderboard with user names (shows display_name if opted in)
 - `GET /api/profile-config` - Get user profile overrides
 - `PUT /api/profile-config` - Update user profile overrides
+- `GET /api/settings` - Get user settings (displayName, showOnLeaderboard, dailyUpdatesEnabled, email)
+- `PUT /api/settings` - Update user settings
 - `GET /api/auth/user` - Get current user
 - `GET /api/login` - Start login flow
 - `GET /api/logout` - Logout

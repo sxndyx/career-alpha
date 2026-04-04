@@ -11,8 +11,12 @@ import {
   type Score, type CareerTrack, type TrackWeight, type ScoreHistory,
   type UserProfileConfig, type CompanyScore, type SchoolScore, type AuthIdentity,
 } from "@shared/schema";
+import { users, type User } from "@shared/models/auth";
 
 export interface IStorage {
+  getUserSettings(userId: string): Promise<User | undefined>;
+  updateUserSettings(userId: string, settings: { displayName?: string | null; showOnLeaderboard?: boolean; dailyUpdatesEnabled?: boolean }): Promise<User>;
+  getLeaderboardByTrack(track: string, currentUserId: string): Promise<Array<{ rank: number; totalScore: number; percentile: number; isCurrentUser: boolean; name: string }>>;
   insertPositions(data: InsertPosition[]): Promise<Position[]>;
   insertEducation(data: InsertEducation[]): Promise<Education[]>;
   insertSkills(data: InsertSkill[]): Promise<Skill[]>;
@@ -302,6 +306,79 @@ class DatabaseStorage implements IStorage {
         )
       );
     return result;
+  }
+
+  async getUserSettings(userId: string): Promise<User | undefined> {
+    const [result] = await db.select().from(users).where(eq(users.id, userId));
+    return result;
+  }
+
+  async updateUserSettings(
+    userId: string,
+    settings: {
+      displayName?: string | null;
+      showOnLeaderboard?: boolean;
+      dailyUpdatesEnabled?: boolean;
+    }
+  ): Promise<User> {
+    const [result] = await db
+      .update(users)
+      .set({ ...settings, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return result;
+  }
+
+  async getLeaderboardByTrack(
+    track: string,
+    currentUserId: string
+  ): Promise<Array<{
+    rank: number;
+    totalScore: number;
+    percentile: number;
+    isCurrentUser: boolean;
+    name: string;
+  }>> {
+    const allScores = await db
+      .select()
+      .from(scores)
+      .where(eq(scores.track, track))
+      .orderBy(desc(scores.totalScore));
+
+    const userIds = allScores.map((s) => s.userId);
+    const userMap = new Map<string, User>();
+
+    if (userIds.length > 0) {
+      const userRows = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userIds[0]));
+
+      for (const u of userRows) userMap.set(u.id, u);
+
+      for (let i = 1; i < userIds.length; i++) {
+        const [u] = await db.select().from(users).where(eq(users.id, userIds[i]));
+        if (u) userMap.set(u.id, u);
+      }
+    }
+
+    return allScores.map((s, index) => {
+      const user = userMap.get(s.userId);
+      const isCurrentUser = s.userId === currentUserId;
+      let name = "anonymous";
+      if (isCurrentUser) {
+        name = "you";
+      } else if (user?.showOnLeaderboard && user.displayName) {
+        name = user.displayName;
+      }
+      return {
+        rank: index + 1,
+        totalScore: s.totalScore,
+        percentile: s.percentile || 0,
+        isCurrentUser,
+        name,
+      };
+    });
   }
 }
 

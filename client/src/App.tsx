@@ -11,6 +11,8 @@ import UploadPage from "@/pages/upload";
 import SelectTrackPage from "@/pages/select-track";
 import DashboardPage from "@/pages/dashboard";
 import LeaderboardPage from "@/pages/leaderboard";
+import SettingsPage from "@/pages/settings";
+import ProfileConfigPage from "@/pages/profile-config";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -23,6 +25,8 @@ function AuthenticatedRoutes() {
         <Route path="/select-track" component={SelectTrackPage} />
         <Route path="/dashboard" component={DashboardPage} />
         <Route path="/leaderboard" component={LeaderboardPage} />
+        <Route path="/settings" component={SettingsPage} />
+        <Route path="/profile-config" component={ProfileConfigPage} />
         <Route component={NotFound} />
       </Switch>
     </div>

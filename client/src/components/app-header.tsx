@@ -1,12 +1,13 @@
 import { useAuth } from "@/hooks/use-auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link, useLocation } from "wouter";
-import { LogOut, Upload, BarChart3, Trophy } from "lucide-react";
+import { LogOut, Upload, BarChart3, Trophy, Settings } from "lucide-react";
 
 const navItems = [
   { path: "/upload", label: "upload", icon: Upload },
   { path: "/dashboard", label: "dashboard", icon: BarChart3 },
   { path: "/leaderboard", label: "leaderboard", icon: Trophy },
+  { path: "/settings", label: "settings", icon: Settings },
 ];
 
 export function AppHeader() {

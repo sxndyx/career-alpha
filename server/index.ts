@@ -69,6 +69,13 @@ app.use((req, res, next) => {
     console.error("Seed error:", e);
   }
 
+  try {
+    const { startDailyJob } = await import("./daily-job");
+    startDailyJob();
+  } catch (e) {
+    console.error("Daily job start error:", e);
+  }
+
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

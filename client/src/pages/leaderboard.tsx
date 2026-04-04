@@ -8,6 +8,7 @@ interface LeaderboardEntry {
   totalScore: number;
   percentile: number;
   isCurrentUser: boolean;
+  name: string;
 }
 
 export default function LeaderboardPage() {
@@ -45,7 +46,7 @@ export default function LeaderboardPage() {
       <div className="flex items-center justify-between gap-4 mb-8 flex-wrap">
         <div>
           <h1 className="text-lg font-medium mb-1" data-testid="text-leaderboard-title">leaderboard</h1>
-          <p className="text-xs text-muted-foreground">anonymous rankings by track</p>
+          <p className="text-xs text-muted-foreground">rankings by track · opt in to show your name in settings</p>
         </div>
         {trackSegments.length > 0 && (
           <SegmentedControl
@@ -97,7 +98,7 @@ export default function LeaderboardPage() {
                   {entry.isCurrentUser ? (
                     <span className="font-medium">you</span>
                   ) : (
-                    <span className="text-muted-foreground">user #{entry.rank}</span>
+                    <span className="text-muted-foreground">{entry.name}</span>
                   )}
                 </span>
                 <span className="w-16 text-right text-xs font-mono" data-testid={`text-score-${entry.rank}`}>
