@@ -1,11 +1,17 @@
 import cron from "node-cron";
 import { db } from "./db";
-import { eq, and, isNotNull } from "drizzle-orm";
+import { eq, and, isNotNull, desc } from "drizzle-orm";
 import { users } from "@shared/models/auth";
-import { scores, scoreHistory, computedFeatures, careerTracks, trackWeights } from "@shared/schema";
+import { scores } from "@shared/schema";
 import { computeScore, generateRecommendations, computePercentile } from "./scoring";
 import { storage } from "./storage";
 import { sendScoreUpdateEmail } from "./email";
+
+const TRACK_LABELS: Record<string, string> = {
+  swe: "SWE",
+  finance: "IB/CF",
+  asset_management: "AM",
+};
 
 async function processUserDailyUpdate(
   userId: string,
@@ -17,23 +23,19 @@ async function processUserDailyUpdate(
       .select()
       .from(scores)
       .where(eq(scores.userId, userId))
-      .orderBy(scores.computedAt)
+      .orderBy(desc(scores.computedAt))
       .limit(1);
 
     if (!latestScore) return;
 
     const track = latestScore.track;
+    const trackLabel = TRACK_LABELS[track] ?? track.toUpperCase();
 
     const features = await storage.getComputedFeatures(userId);
     if (!features) return;
 
     const weights = await storage.getTrackWeightsBySlug(track);
     if (!weights) return;
-
-    const [companyScoreList, schoolScoreList] = await Promise.all([
-      storage.getCompanyScores(),
-      storage.getSchoolScores(),
-    ]);
 
     const { totalScore, breakdown } = computeScore(features, weights);
 
@@ -42,14 +44,24 @@ async function processUserDailyUpdate(
     allScoreValues.push(totalScore);
     const percentile = computePercentile(totalScore, allScoreValues);
 
+    const sortedScores = [...allTrackScores, { userId, totalScore }]
+      .sort((a, b) => b.totalScore - a.totalScore);
+    const currentRank = sortedScores.findIndex((s) => s.userId === userId) + 1;
+    const totalUsers = sortedScores.length;
+
     const latestHistory = await storage.getLatestScoreHistoryEntry(userId, track);
     const prevScore = latestHistory?.score ?? null;
     const prevPercentile = latestHistory?.percentile ?? null;
+    const prevBreakdown = latestHistory?.factorBreakdown as Record<string, number> | null ?? null;
 
     const scoreDelta = prevScore !== null ? Math.abs(totalScore - prevScore) : Infinity;
     const percentileDelta = prevPercentile !== null ? Math.abs(percentile - prevPercentile) : Infinity;
 
     if (scoreDelta <= 0.01 && percentileDelta <= 0.5) return;
+
+    const prevRank = prevPercentile !== null
+      ? Math.max(1, Math.round((1 - prevPercentile / 100) * totalUsers))
+      : undefined;
 
     const recommendations = generateRecommendations(breakdown, weights);
 
@@ -79,10 +91,16 @@ async function processUserDailyUpdate(
       to: email,
       displayName,
       track,
+      trackLabel,
       currentScore: totalScore,
       previousScore: prevScore ?? totalScore,
       currentPercentile: percentile,
       previousPercentile: prevPercentile ?? percentile,
+      currentRank,
+      previousRank: prevRank,
+      totalUsers,
+      factorBreakdown: breakdown,
+      previousFactorBreakdown: prevBreakdown ?? undefined,
       recommendations,
     });
   } catch (err) {

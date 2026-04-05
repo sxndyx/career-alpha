@@ -10,12 +10,12 @@ import { type Position, type Education, type ProfileOverrides, type CareerTrack 
 import { ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
 
-const TIER_OPTIONS = [
-  { value: "default", label: "default" },
-  { value: "1", label: "tier 1 (top)" },
-  { value: "2", label: "tier 2" },
-  { value: "3", label: "tier 3" },
-  { value: "4", label: "tier 4 (other)" },
+const SIGNAL_OPTIONS = [
+  { value: "default", label: "auto-detect" },
+  { value: "1", label: "high signal" },
+  { value: "2", label: "medium signal" },
+  { value: "3", label: "standard" },
+  { value: "4", label: "low signal" },
 ];
 
 export default function ProfileConfigPage() {
@@ -174,7 +174,10 @@ export default function ProfileConfigPage() {
 
         {hasPositions && (
           <section>
-            <h2 className="text-xs tracking-widest text-muted-foreground uppercase mb-4">positions</h2>
+            <h2 className="text-xs tracking-widest text-muted-foreground uppercase mb-2">positions</h2>
+            <p className="text-xs text-muted-foreground tracking-wide mb-4">
+              company score override — used only when imported data is ambiguous or needs correction.
+            </p>
             <div className="border border-border/60 rounded divide-y divide-border/40">
               {positions!.map((pos) => {
                 const isExcluded = excludePositionIds.includes(pos.id);
@@ -206,20 +209,20 @@ export default function ProfileConfigPage() {
                     </div>
 
                     {!isExcluded && pos.company && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground tracking-wide">company tier</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs text-muted-foreground tracking-wide">company score override</span>
                         <Select
                           value={companyTierValue}
                           onValueChange={(v) => setCompanyTier(pos.company!, v)}
                         >
                           <SelectTrigger
-                            className="h-6 text-xs w-32 border-border/60 bg-background focus:ring-0"
+                            className="h-6 text-xs w-36 border-border/60 bg-background focus:ring-0"
                             data-testid={`select-company-tier-${pos.id}`}
                           >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {TIER_OPTIONS.map((opt) => (
+                            {SIGNAL_OPTIONS.map((opt) => (
                               <SelectItem key={opt.value} value={opt.value} className="text-xs">
                                 {opt.label}
                               </SelectItem>
@@ -268,7 +271,10 @@ export default function ProfileConfigPage() {
 
         {hasEducation && (
           <section>
-            <h2 className="text-xs tracking-widest text-muted-foreground uppercase mb-4">education</h2>
+            <h2 className="text-xs tracking-widest text-muted-foreground uppercase mb-2">education</h2>
+            <p className="text-xs text-muted-foreground tracking-wide mb-4">
+              school score override — used only when imported data is ambiguous or needs correction.
+            </p>
             <div className="border border-border/60 rounded divide-y divide-border/40">
               {education!.map((edu) => {
                 const institutionKey = (edu.institution ?? "").toLowerCase();
@@ -287,19 +293,18 @@ export default function ProfileConfigPage() {
                       </div>
                       {edu.institution && (
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-xs text-muted-foreground tracking-wide">school tier</span>
                           <Select
                             value={tierValue}
                             onValueChange={(v) => setSchoolTier(edu.institution!, v)}
                           >
                             <SelectTrigger
-                              className="h-6 text-xs w-32 border-border/60 bg-background focus:ring-0"
+                              className="h-6 text-xs w-36 border-border/60 bg-background focus:ring-0"
                               data-testid={`select-school-tier-${institutionKey}`}
                             >
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {TIER_OPTIONS.map((opt) => (
+                              {SIGNAL_OPTIONS.map((opt) => (
                                 <SelectItem key={opt.value} value={opt.value} className="text-xs">
                                   {opt.label}
                                 </SelectItem>

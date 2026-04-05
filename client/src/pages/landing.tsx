@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Linkedin } from "lucide-react";
 
 export default function LandingPage() {
   return (
@@ -31,13 +31,23 @@ export default function LandingPage() {
             <p className="text-sm text-muted-foreground max-w-md leading-relaxed mb-10" data-testid="text-hero-subtitle">
               upload your linkedin data export and receive a weighted composite score, percentile ranking, and actionable insights tailored to your career track.
             </p>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-start gap-3">
               <a href="/api/login">
                 <Button className="gap-2 text-xs tracking-wide px-6" data-testid="button-get-started">
                   get started
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Button>
               </a>
+              <Button
+                variant="outline"
+                className="gap-2 text-xs tracking-wide px-6 opacity-50 cursor-not-allowed border-border/60"
+                disabled
+                title="coming soon"
+                data-testid="button-linkedin-coming-soon"
+              >
+                <Linkedin className="w-3.5 h-3.5" />
+                linkedin sign-in coming soon
+              </Button>
             </div>
             <div className="flex items-center gap-6 mt-10 text-xs text-muted-foreground">
               <span>no scraping</span>
@@ -89,7 +99,7 @@ export default function LandingPage() {
                   <div className="flex justify-between"><span className="text-muted-foreground">internship count</span><span className="font-mono">25%</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">brand score</span><span className="font-mono">20%</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">skill density</span><span className="font-mono">20%</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">education tier</span><span className="font-mono">15%</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">education</span><span className="font-mono">15%</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">seniority</span><span className="font-mono">10%</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">network</span><span className="font-mono">10%</span></div>
                 </div>
@@ -100,7 +110,7 @@ export default function LandingPage() {
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between"><span className="text-muted-foreground">brand score</span><span className="font-mono">30%</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">internship count</span><span className="font-mono">25%</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">education tier</span><span className="font-mono">20%</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">education</span><span className="font-mono">20%</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">consistency</span><span className="font-mono">15%</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">network</span><span className="font-mono">10%</span></div>
                 </div>
@@ -111,7 +121,7 @@ export default function LandingPage() {
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between"><span className="text-muted-foreground">internship count</span><span className="font-mono">30%</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">brand score</span><span className="font-mono">25%</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">education tier</span><span className="font-mono">20%</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">education</span><span className="font-mono">20%</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">recency</span><span className="font-mono">15%</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">network</span><span className="font-mono">10%</span></div>
                 </div>

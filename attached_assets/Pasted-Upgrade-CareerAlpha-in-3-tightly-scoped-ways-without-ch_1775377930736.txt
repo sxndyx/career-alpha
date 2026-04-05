@@ -1,0 +1,77 @@
+Upgrade CareerAlpha in 3 tightly scoped ways without changing the core product direction.
+
+NON-NEGOTIABLE RULES
+- Do NOT add scraping, crawling, automated LinkedIn data collection, or login automation.
+- Do NOT fabricate graph/history data.
+- Keep the app minimal, premium, Monkeytype-esque.
+- Keep existing scoring flow, but make the UX clearer and the auth architecture future-ready.
+
+SECTION 1 — CLEAN DAILY RANK EMAIL
+Build a clean daily update email template and delivery flow.
+
+Requirements:
+- Redesign the daily update email to feel like a minimal Monkeytype/trading alert.
+- Subject format:
+  CareerAlpha Daily — {score_delta} | #{rank} {track} | Top {percentile}%
+- Email body should contain:
+  1. Large score at top
+  2. Rank movement directly below
+  3. Percentile movement
+  4. Compact 3-row summary table:
+     - Score
+     - Percentile
+     - Leaderboard rank
+  5. “What changed” section with only the factor deltas that changed
+  6. One short action item
+- No marketing language, no clutter, no oversized buttons.
+- Only send an email when there is a real change in stored score/rank/percentile since the last notification.
+- Add a user setting for:
+  - email
+  - daily_updates_enabled
+  - last_notified_at
+
+SECTION 2 — REMOVE CONFUSING “TIERS” UI
+The settings tab currently uses vague “tiers” language. Fix this.
+
+Requirements:
+- Remove the label “tiers” from the user-facing UI.
+- Replace with explicit names:
+  - Company score override
+  - School score override
+- Add helper text:
+  “Used only when imported LinkedIn export data is ambiguous or needs correction.”
+- Replace vague labels like Tier 1 / Tier 2 with clearer options such as:
+  - High signal
+  - Medium signal
+  - Standard
+- Keep the underlying override functionality intact if it exists.
+- Make the settings page feel clearer and more trustworthy.
+
+SECTION 3 — FUTURE-PROOF AUTH FOR LINKEDIN SIGN-IN
+Prepare the auth architecture so CareerAlpha can later support Sign in with LinkedIn, while keeping Replit Auth working now.
+
+Requirements:
+- Keep Replit Auth as the active auth provider.
+- Refactor auth so the app uses an internal users table plus an auth_identities table:
+  - id
+  - user_id
+  - provider
+  - provider_user_id
+  - email
+- Current provider = replit
+- Future provider = linkedin
+- All app logic must depend only on internal user_id, never provider-specific IDs.
+- Add a placeholder auth provider abstraction so Google/LinkedIn can be added later cleanly.
+- Add a disabled “LinkedIn sign-in coming soon” button in the UI only if easy.
+- DO NOT implement any automatic LinkedIn export import.
+- DO NOT attempt to pull full LinkedIn export data from LinkedIn login.
+- Keep upload-based LinkedIn export ingestion as the source of truth for scoring input.
+
+DELIVERABLES
+- Updated backend for email preferences and auth identities
+- Updated settings page copy and labels
+- Clean daily email template
+- Future-ready auth abstraction
+- No scraping
+- No fake graph data
+- No backend schema changes unrelated to these 3 sections
