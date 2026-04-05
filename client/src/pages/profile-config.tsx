@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { type Position, type Education, type ProfileOverrides } from "@shared/schema";
+import { type Position, type Education, type ProfileOverrides, type CareerTrack } from "@shared/schema";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
 
@@ -33,10 +33,15 @@ export default function ProfileConfigPage() {
     queryKey: ["/api/profile-config"],
   });
 
+  const { data: tracks } = useQuery<CareerTrack[]>({
+    queryKey: ["/api/tracks"],
+  });
+
   const [excludePositionIds, setExcludePositionIds] = useState<string[]>([]);
   const [internshipOverrideStr, setInternshipOverrideStr] = useState<string>("");
   const [companyTierOverrides, setCompanyTierOverrides] = useState<Record<string, number>>({});
   const [schoolTierOverrides, setSchoolTierOverrides] = useState<Record<string, number>>({});
+  const [targetTrack, setTargetTrack] = useState<string>("none");
 
   useEffect(() => {
     if (overrides) {
@@ -48,6 +53,7 @@ export default function ProfileConfigPage() {
       );
       setCompanyTierOverrides(overrides.companyTierOverrides ?? {});
       setSchoolTierOverrides(overrides.schoolTierOverrides ?? {});
+      setTargetTrack(overrides.targetTrack ?? "none");
     }
   }, [overrides]);
 
@@ -74,6 +80,7 @@ export default function ProfileConfigPage() {
       ...(internshipOverride !== undefined && { internshipOverride }),
       companyTierOverrides,
       schoolTierOverrides,
+      ...(targetTrack !== "none" && { targetTrack }),
     });
   }
 
@@ -120,26 +127,6 @@ export default function ProfileConfigPage() {
   const hasPositions = positions && positions.length > 0;
   const hasEducation = education && education.length > 0;
 
-  if (!hasPositions && !hasEducation) {
-    return (
-      <div className="max-w-xl mx-auto px-6 py-12">
-        <Link href="/settings">
-          <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-8 transition-colors" data-testid="link-back-settings">
-            <ArrowLeft className="w-3 h-3" />
-            back to settings
-          </button>
-        </Link>
-        <div className="text-center py-12">
-          <p className="text-sm text-muted-foreground tracking-wide">no linkedin data uploaded yet.</p>
-          <Link href="/upload">
-            <button className="mt-4 text-xs text-foreground underline underline-offset-4 tracking-wide" data-testid="link-upload-first">
-              upload data →
-            </button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-xl mx-auto px-6 py-12">
@@ -158,6 +145,33 @@ export default function ProfileConfigPage() {
       </div>
 
       <div className="space-y-8">
+        {tracks && tracks.length > 0 && (
+          <section>
+            <h2 className="text-xs tracking-widest text-muted-foreground uppercase mb-4">target track</h2>
+            <div className="border border-border/60 rounded p-4">
+              <p className="text-xs text-muted-foreground tracking-wide mb-3">
+                your preferred career path. used to default the scoring track.
+              </p>
+              <Select value={targetTrack} onValueChange={setTargetTrack}>
+                <SelectTrigger
+                  className="h-8 text-xs w-64 border-border/60 bg-background focus:ring-0 font-mono"
+                  data-testid="select-target-track"
+                >
+                  <SelectValue placeholder="select a track" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" className="text-xs">no preference</SelectItem>
+                  {tracks.map((t) => (
+                    <SelectItem key={t.slug} value={t.slug} className="text-xs">
+                      {t.name.toLowerCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </section>
+        )}
+
         {hasPositions && (
           <section>
             <h2 className="text-xs tracking-widest text-muted-foreground uppercase mb-4">positions</h2>

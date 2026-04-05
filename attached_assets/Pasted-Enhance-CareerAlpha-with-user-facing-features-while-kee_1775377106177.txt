@@ -1,0 +1,105 @@
+Enhance CareerAlpha with user-facing features while keeping the system clean and minimal.
+
+CRITICAL RULES:
+- DO NOT modify core scoring logic
+- DO NOT introduce fake data
+- Maintain minimal Monkeytype-style UI
+
+----------------------------------------
+1. PUBLIC LEADERBOARD (OPT-IN)
+----------------------------------------
+
+Update users table:
+- display_name (text)
+- show_on_leaderboard (boolean, default false)
+
+Backend:
+- Leaderboard query:
+  if show_on_leaderboard → display_name
+  else → "Anonymous"
+
+Frontend:
+- Add settings:
+  - display_name input
+  - toggle for leaderboard visibility
+
+----------------------------------------
+2. EMAIL + DAILY UPDATES
+----------------------------------------
+
+Extend users (or user_settings):
+- email
+- email_verified
+- daily_updates_enabled
+- last_notified_at
+
+Backend:
+- Endpoint to update email + toggle updates
+
+Create daily job:
+- Recompute score + percentile
+- Compare with latest score_history
+- If changed → send email
+
+Email must include:
+- score change
+- percentile change
+- rank (if available)
+- 1–2 recommendations
+
+Use simple provider (Resend / nodemailer)
+
+DO NOT spam users.
+Only send when changes occur.
+
+----------------------------------------
+3. DASHBOARD DATA INTEGRITY
+----------------------------------------
+
+Update frontend dashboard:
+
+- Use ONLY real score_history data
+- If no history:
+  - show empty state OR single static value
+- DO NOT simulate chart data
+
+----------------------------------------
+4. PROFILE CONFIG UI
+----------------------------------------
+
+Add "Profile Adjustments" page:
+
+Allow user to:
+- toggle roles (include/exclude)
+- mark internships
+- override company/school tier
+- choose target track
+
+Save to user_profile_config
+
+----------------------------------------
+5. TRACK SELECTION (DYNAMIC)
+----------------------------------------
+
+Frontend:
+- Fetch tracks from API
+- Replace hardcoded dropdown
+
+----------------------------------------
+6. UI POLISH (MINIMAL)
+----------------------------------------
+
+- Maintain clean, Monkeytype-like design
+- Keep spacing + typography consistent
+- No clutter
+- Focus on clarity
+
+----------------------------------------
+DELIVERABLE
+----------------------------------------
+
+- Updated frontend components
+- Settings page
+- Leaderboard updates
+- Email integration
+- Clean UX with no fake data
